@@ -1,0 +1,32 @@
+# Tracked universe. Edit with discipline — track the liquid complex, not noise.
+# See Open Decision #2 for single-name choices.
+
+[indices]
+# Core ETF + index complex
+equities = ["SPY", "QQQ", "IWM", "DIA"]
+# Futures symbols as used by tastytrade (front-month)
+futures = ["/ES", "/NQ", "/RTY"]
+
+[vol_complex]
+# VIX family — fetched via yfinance (prefix ^)
+vix = ["^VIX", "^VIX1D", "^VVIX", "^VIX3M"]
+# Cross-asset vol: MOVE (bonds), GVZ (gold), OVX (crude) — availability TBD
+cross_asset = ["^MOVE", "GVZ", "OVX"]
+
+[single_names]
+# Open Decision #2: populate after deciding on universe
+# Principle: liquid, high-OI options markets only
+equities = []
+
+[fred_series]
+# Yield curve
+t10y2y   = "T10Y2Y"          # 10Y − 2Y spread (curve steepness)
+t10y3m   = "T10Y3M"          # 10Y − 3M spread (Estrella recession signal)
+
+# Credit
+hy_oas   = "BAMLH0A0HYM2EY"  # ICE BofA High Yield OAS (basis points)
+
+# Policy and real rates
+fed_funds = "DFF"             # Fed Funds Effective Rate
+real_10y  = "DFII10"          # 10Y TIPS yield (real rate)
+bkeven_10y = "T10YIE"         # 10Y breakeven inflation rate

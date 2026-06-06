@@ -1,0 +1,15 @@
+[Unit]
+Description=Run market-hourly collector every hour during market hours (ET)
+Requires=market-hourly.service
+
+[Timer]
+# Every hour Mon–Fri 09:30–16:30 ET.
+# Note: systemd OnCalendar uses the host's local time zone.
+# If the host is not set to America/New_York, adjust the hours here or
+# use the TZ= option in the [Service] unit instead.
+OnCalendar=Mon-Fri *-*-* 09,10,11,12,13,14,15,16:30:00
+# Re-run a missed job when the system wakes from suspend
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Market data collector — hourly run (tastytrade + yfinance)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# TODO: replace with your user and project path
+User=YOUR_USER
+WorkingDirectory=/path/to/derivative-implied-pricing
+ExecStart=/path/to/venv/bin/python -m src.collector --mode=hourly
+StandardOutput=journal
+StandardError=journal
+# Allow up to 5 minutes; tastytrade + yfinance fetches are usually <60s
+TimeoutStartSec=300

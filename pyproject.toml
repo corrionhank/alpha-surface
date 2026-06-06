@@ -1,0 +1,68 @@
+[project]
+name = "derivative-implied-pricing"
+version = "0.1.0"
+description = "Personal market analytics dashboard — options vol, expected moves, and derivative-implied market metrics"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Core scientific
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    # Data collection
+    "tastytrade",               # tastyware SDK — options chains, /market-metrics, Greeks via dxFeed
+    "yfinance>=0.2.50",         # OHLCV, VIX complex
+    "fredapi>=0.5",             # FRED macro / rates / credit spreads
+    "pandas-datareader>=0.10",
+    "vix-utils",                # CBOE VIX-futures term structure (daily settlement)
+    "httpx>=0.27",              # async HTTP for Finnhub / Marketaux news APIs
+    # Technical metrics
+    "pandas-ta>=0.4.67b0",      # no stable release for Python 3.13; latest beta
+    # Storage
+    "duckdb>=0.10",
+    "pyarrow>=15.0",            # Parquet read/write
+    # Presentation
+    "rich>=13.0",               # terminal formatting and tables
+    "textual>=0.60",            # TUI (optional v1.5)
+    "streamlit>=1.35",          # LAN web dashboard (intermediate)
+    # Config / utilities
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+notebooks = [
+    "jupyterlab>=4.0",
+    "ipywidgets>=8.0",
+    "matplotlib>=3.8",
+    "plotly>=5.20",
+]
+phase2 = [
+    "arch>=6.0",            # GARCH volatility models
+    "pyextremes>=2.3",      # EVT / Generalized Pareto tail modeling
+    "quantstats>=0.0.62",   # portfolio analytics and tearsheets
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

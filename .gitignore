@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data — DuckDB + Parquet (can be hundreds of MB/year; never commit)
+data/
+*.duckdb
+*.parquet
+
+# Project credentials (config.toml holds tastytrade / FRED / news API keys)
+config/config.toml
+
+# tastytrade session tokens
+.tastytrade/
+
+# Claude Code project settings
+.claude/

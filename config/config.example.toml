@@ -1,0 +1,32 @@
+# Copy this file to config/config.toml and fill in your values.
+# config/config.toml is gitignored — never commit secrets.
+
+[tastytrade]
+username = ""
+password = ""
+# Set to true to use the paper-trading sandbox (different base URL)
+paper_trading = false
+
+[storage]
+# Absolute path on the host machine to the data directory
+data_dir = "/home/user/data/market"
+# DuckDB database file (relative to data_dir)
+db_file = "market.duckdb"
+
+[collection]
+# Market session window (ET); collector only runs during this window
+market_open  = "09:30"
+market_close = "16:00"
+timezone     = "America/New_York"
+# How many strikes above and below ATM to capture per expiry
+strike_band_pct = 0.15   # ± 15% from spot
+
+[fred]
+# Get a free API key at https://fred.stlouisfed.org/docs/api/api_key.html
+api_key = ""
+
+[news]
+# Finnhub: https://finnhub.io — free tier
+finnhub_api_key = ""
+# Marketaux: https://www.marketaux.com — 100 req/day free
+marketaux_api_key = ""

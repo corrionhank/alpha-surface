@@ -1,0 +1,11 @@
+[Unit]
+Description=Run EOD data collector Mon–Fri after close
+Requires=market-eod.service
+
+[Timer]
+# 17:00 ET Mon–Fri (FRED and VIX-futures settlement typically available by then)
+OnCalendar=Mon-Fri *-*-* 17:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
