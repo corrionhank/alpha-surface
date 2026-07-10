@@ -28,6 +28,30 @@ cp config/config.example.toml config/config.toml
 
 ---
 
+## Run (yfinance slice)
+
+First working slice of the `collector → storage → present` pipeline, on free yfinance
+OHLCV. No `config.toml` needed — it defaults to the gitignored `data/` dir.
+
+```bash
+# 1. Collect bars into the Parquet lake (hive-partitioned by day; idempotent)
+python -m collector.yfinance_collector --interval 1h --period 1mo
+python -m collector.yfinance_collector --interval 1d --period 1y
+
+# 2a. Quick terminal snapshot
+python -m present.terminal --symbol SPY --interval 1h --tail 12
+
+# 2b. Browser dashboard (LAN)
+streamlit run src/present/streamlit_app.py
+```
+
+Storage model is in `docs/schema.md` (`ohlcv` table). tastytrade metrics/chains and the
+derive layer (IVR/IVP/VRP/regime) build on this same shape later.
+
+*2026-07-10 — yfinance OHLCV slice: config loader, storage (schema/writer/reader), collector, rich + Streamlit frontends.*
+
+---
+
 ## Docs
 
 | File | Purpose |
