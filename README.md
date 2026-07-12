@@ -1,15 +1,15 @@
 # derivative-implied-pricing
 
-Personal market analytics dashboard — a custom watchlist aggregating options pricing, implied volatility, expected moves, VRP, regime signals, and cross-asset vol. Decodes what the options market has already priced in to inform trade decisions. Built on the **tastytrade API** (free real-time data for funded non-professional accounts).
+Personal market analytics dashboard. A custom watchlist aggregating options pricing, implied volatility, expected moves, VRP, regime signals, and cross-asset vol. Decodes what the options market has already priced in to inform trade decisions. Built on the **tastytrade API** (free real-time data for funded non-professional accounts).
 
 ---
 
 ## What it shows
 
-1. **Regime** — VIX term structure, VRP, HY credit-spread percentile, yield-curve slope
-2. **Stretch** — price vs. 50/200-DMA, realized-vol percentile
-3. **Priced** — expected-move cone, put-call skew
-4. **Why** — filtered, market-moving news feed
+1. **Regime**: VIX term structure, VRP, HY credit-spread percentile, yield-curve slope
+2. **Stretch**: price vs. 50/200-DMA, realized-vol percentile
+3. **Priced**: expected-move cone, put-call skew
+4. **Why**: filtered, market-moving news feed
 
 Per-underlying panel: IV Rank, IV Percentile, IVx, IV−HV (VRP), expected move, skew, term structure, delta-based probabilities.
 
@@ -23,32 +23,32 @@ cd derivative-implied-pricing
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[notebooks,dev]"
 cp config/config.example.toml config/config.toml
-# Edit config/config.toml — tastytrade credentials, FRED API key
+# Edit config/config.toml with tastytrade credentials and FRED API key
 ```
 
 ---
 
 ## Run (yfinance slice)
 
-First working slice of the `collector → storage → present` pipeline, on free yfinance
-OHLCV. No `config.toml` needed — it defaults to the gitignored `data/` dir.
+Collector, storage, and present layers on free yfinance OHLCV. No `config.toml` needed; it
+defaults to the gitignored `data/` dir.
 
 ```bash
-# 1. Collect bars into the Parquet lake (hive-partitioned by day; idempotent)
-python -m collector.yfinance_collector --interval 1h --period 1mo
-python -m collector.yfinance_collector --interval 1d --period 1y
+# 1. Collect bars into Parquet (hive-partitioned by day, idempotent)
+python -m collector.yfinance_collector --interval 1d --period 10y   # daily, 10 years
+python -m collector.yfinance_collector --interval 1h --period 2y    # hourly, Yahoo caps 1h at ~730d
 
-# 2a. Quick terminal snapshot
+# 2a. Terminal snapshot
 python -m present.terminal --symbol SPY --interval 1h --tail 12
 
-# 2b. Browser dashboard (LAN)
+# 2b. Browser dashboard
 streamlit run src/present/streamlit_app.py
 ```
 
-Storage model is in `docs/schema.md` (`ohlcv` table). tastytrade metrics/chains and the
-derive layer (IVR/IVP/VRP/regime) build on this same shape later.
+Storage model: `docs/schema.md` (`ohlcv` table). tastytrade metrics/chains and the derive
+layer (IVR/IVP/VRP/regime) build on this shape later.
 
-*2026-07-10 — yfinance OHLCV slice: config loader, storage (schema/writer/reader), collector, rich + Streamlit frontends.*
+*2026-07-10: yfinance OHLCV slice. Config loader, storage, collector, terminal and Streamlit frontends.*
 
 ---
 

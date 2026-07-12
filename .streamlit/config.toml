@@ -1,0 +1,13 @@
+# Streamlit theme modeled on massive.com: light, white with electric-blue accent, bold type.
+# Component polish (cards, headings, chrome) lives in src/present/theme.py.
+
+[theme]
+base = "light"
+primaryColor = "#2C5CF6"              # electric blue accent
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F8FA"  # sidebar and panels
+textColor = "#0F172A"
+linkColor = "#2C5CF6"
+borderColor = "#E5E7EB"
+baseRadius = "0.6rem"
+font = "sans serif"

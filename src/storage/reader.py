@@ -1,8 +1,4 @@
-"""DuckDB query helpers over the ohlcv view.
-
-All functions take a live connection (see ``storage.schema.connect``). At current
-data volume it's cheap to pull a symbol's full series and slice in pandas.
-"""
+"""Query helpers over the ohlcv view."""
 
 from __future__ import annotations
 
@@ -23,12 +19,8 @@ def available_symbols(conn: duckdb.DuckDBPyConnection, interval: str | None = No
 
 
 def get_ohlcv(
-    conn: duckdb.DuckDBPyConnection,
-    symbol: str,
-    interval: str = "1h",
-    tail: int | None = None,
+    conn: duckdb.DuckDBPyConnection, symbol: str, interval: str = "1h", tail: int | None = None
 ) -> pd.DataFrame:
-    """Return a symbol's bars ordered oldest→newest; ``tail`` keeps the last N."""
     df = conn.execute(
         f"{_SELECT} WHERE symbol = ? AND interval = ? ORDER BY ts", [symbol, interval]
     ).df()
