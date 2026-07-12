@@ -1,7 +1,4 @@
-"""rich terminal snapshot of stored OHLCV — a fast eyeball check on the data.
-
-Run:  python -m present.terminal --symbol SPY --interval 1h --tail 12
-"""
+"""rich terminal view of stored OHLCV. Run: python -m present.terminal --symbol SPY."""
 
 from __future__ import annotations
 
@@ -18,26 +15,22 @@ from storage import reader, schema
 def render(symbol: str = "SPY", interval: str = "1h", tail: int = 12) -> None:
     config = load_config()
     console = Console()
-
     with schema.connect(config, persistent=False) as conn:
         df = reader.get_ohlcv(conn, symbol, interval, tail=tail)
 
     if df.empty:
         console.print(
-            f"[yellow]No {interval} data for {symbol}.[/] "
-            f"Run: [bold]python -m collector.yfinance_collector --interval {interval}[/]"
+            f"No {interval} data for {symbol}. "
+            f"Run: python -m collector.yfinance_collector --interval {interval}"
         )
         return
 
     s = summarize(df)
-    arrow = "▲" if s["change_abs"] >= 0 else "▼"
     color = "green" if s["change_abs"] >= 0 else "red"
     console.print(
         f"\n[bold]{s['symbol']}[/] {s['interval']}   "
-        f"[{color}]{s['last']:.2f} {arrow} {s['change_abs']:+.2f} "
-        f"({s['change_pct']:+.2f}%)[/]   "
-        f"window {s['window_change_pct']:+.2f}%   "
-        f"RV≈{s['rv_annualized_pct']:.1f}%   "
+        f"[{color}]{s['last']:.2f} {s['change_abs']:+.2f} ({s['change_pct']:+.2f}%)[/]   "
+        f"window {s['window_change_pct']:+.2f}%   RV {s['rv_annualized_pct']:.1f}%   "
         f"[dim]{s['bars']} bars[/]"
     )
 
@@ -46,14 +39,10 @@ def render(symbol: str = "SPY", interval: str = "1h", tail: int = 12) -> None:
     for col in ("open", "high", "low", "close"):
         table.add_column(col, justify="right")
     table.add_column("volume", justify="right", style="dim")
-
     for _, r in df.iterrows():
         table.add_row(
             r["ts"].strftime("%Y-%m-%d %H:%M"),
-            f"{r['open']:.2f}",
-            f"{r['high']:.2f}",
-            f"{r['low']:.2f}",
-            f"{r['close']:.2f}",
+            f"{r['open']:.2f}", f"{r['high']:.2f}", f"{r['low']:.2f}", f"{r['close']:.2f}",
             f"{int(r['volume']):,}",
         )
     console.print(table)

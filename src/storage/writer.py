@@ -1,10 +1,4 @@
-"""Parquet append helpers with upsert (dedup) semantics.
-
-Data volume is tiny (hourly bars), so each write does a read-modify-write on the
-affected day partitions: concat, drop duplicates on the primary key keeping the
-freshest row, rewrite. This makes collector retries idempotent — re-running never
-accumulates duplicates and refreshes the still-forming latest bar.
-"""
+"""Parquet writes with upsert. Read-modify-write per day partition, dedup on primary key."""
 
 from __future__ import annotations
 
@@ -18,19 +12,13 @@ from storage.schema import OHLCV_COLUMNS, PK_OHLCV
 
 def _partition_path(config: Config, ts: pd.Timestamp) -> Path:
     return (
-        config.parquet_dir
-        / "ohlcv"
-        / f"year={ts.year}"
-        / f"month={ts.month}"
-        / f"day={ts.day}"
-        / "data.parquet"
+        config.parquet_dir / "ohlcv"
+        / f"year={ts.year}" / f"month={ts.month}" / f"day={ts.day}" / "data.parquet"
     )
 
 
 def write_ohlcv(df: pd.DataFrame, config: Config) -> int:
-    """Append OHLCV rows to their day partitions, deduped on (ts, symbol, interval).
-
-    Returns the number of rows handed in (post-normalization, pre-dedup)."""
+    """Append rows to their day partitions, deduped on (ts, symbol, interval). Returns rows in."""
     if df is None or df.empty:
         return 0
 
@@ -46,7 +34,6 @@ def write_ohlcv(df: pd.DataFrame, config: Config) -> int:
     ):
         path = _partition_path(config, pd.Timestamp(year=year, month=month, day=day, tz="UTC"))
         path.parent.mkdir(parents=True, exist_ok=True)
-
         combined = pd.read_parquet(path) if path.exists() else None
         combined = pd.concat([combined, part], ignore_index=True) if combined is not None else part
         combined = (
