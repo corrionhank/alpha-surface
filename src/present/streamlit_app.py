@@ -16,6 +16,7 @@ theme.apply()
 # the header as a top navbar; the sidebar is left for page-specific controls.
 pages = [
     st.Page("dashboard.py", title="Dashboard", default=True),
+    st.Page("pricing.py", title="Black-Scholes"),
     st.Page("docs_portal.py", title="Docs and Formulas"),
 ]
 st.navigation(pages, position="top").run()
