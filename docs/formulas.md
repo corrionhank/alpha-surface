@@ -236,4 +236,205 @@ Smooth the IV surface before differentiating twice (raw prices are too noisy).
 
 ---
 
+## 11. Pot odds and edge
+
+A defined-risk trade risking $R$ to make $W$ is a bet laid at $b = W/R$. The win rate that makes
+it a coin flip in expectation depends on the payoff alone:
+
+$$p^* = \frac{R}{R + W} = \frac{1}{1 + b}$$
+
+This is the poker calculation: call $C$ to win a pot of $P$ and you need $C/(P+C)$ equity. Nothing
+about the market or the underlying enters $p^*$. Expected value and edge follow:
+
+$$\text{EV} = pW - (1-p)R \qquad \text{edge} = p - p^*$$
+
+The two collapse into one identity, so a positive edge and a positive EV are the same statement:
+
+$$\text{EV} = (R + W)\,(p - p^*)$$
+
+Options quote the odds directly. A vertical of width $X$ sold for credit $c$ keeps $W = c$ and
+risks $R = X - c$:
+
+$$p^*_{\text{credit}} = \frac{X - c}{X} \qquad p^*_{\text{debit}} = \frac{d}{X}$$
+
+So the credit as a fraction of the width is the market's own price of the spread finishing at max
+loss. Bought instead for debit $d$, the payoff flips: $R = d$, $W = X - d$.
+
+**The equity side.** $p^*$ is free, but $p$ has to be estimated, and Black-Scholes already supplies
+one under the risk-neutral measure (section 3):
+
+$$P(S_T > K) = \Phi(d_2) \qquad P(S_T < K) = \Phi(-d_2)$$
+
+Evaluate it at implied vol and you recover the market's odds, which is why a fairly priced spread
+has $p \approx p^*$ and no edge. Evaluate the same expression at realized vol instead and you get the
+odds under the historical distribution. The gap between the two is the variance risk premium
+(section 4): when $\sigma_{\text{IV}} > \sigma_{\text{RV}}$, the seller is laid better odds than the
+risk warrants. Pot odds is the decision rule that VRP feeds.
+
+Kelly gives the log-growth-maximizing stake for an edge:
+
+$$f^* = \frac{pb - (1-p)}{b} = p - \frac{1-p}{b}$$
+
+Full Kelly assumes $p$ is exactly right and punishes overestimation hard, so treat it as a ceiling
+on size, not a target. Half-Kelly is the usual concession to the fact that $p$ is a guess.
+
+---
+
+## 12. Regime flag
+
+Shorthand for the state strip, not a signal. The VIX level picks the base bucket:
+
+$$\text{VIX} < 14:\ \text{low\_vol} \qquad 14\text{--}20:\ \text{normal} \qquad
+20\text{--}28:\ \text{elevated} \qquad \ge 28:\ \text{stress}$$
+
+Backwardation ($\text{VIX3M} < \text{VIX}$, section 6) and negative VRP
+($\sigma_{\text{RV21}} > \text{VIX}$, section 4) each escalate one bucket, capped at stress.
+Both mean the market is being repriced faster than the back end or the option premium admits.
+
+---
+
+## 13. Single-contract metrics
+
+What the options chain page shows for one selected contract. Spot $S$, strike $K$, calendar days
+to expiry $D$, $T = D/365$. Everything is per share; one contract is 100 shares.
+
+**Mark.** The mid of a two-sided market, else the last print (flagged stale):
+
+$$m = \tfrac{1}{2}(b + a) \quad \text{if } b > 0 \text{ and } a > b, \qquad m = \text{last otherwise}$$
+
+**Intrinsic and extrinsic.** Intrinsic is spot-based, what exercising now is worth:
+
+$$\text{intrinsic}_{\text{call}} = \max(S - K, 0) \qquad \text{intrinsic}_{\text{put}} = \max(K - S, 0)$$
+
+$$\text{extrinsic} = m - \text{intrinsic} \qquad \text{extrinsic per day} = \frac{m - \text{intrinsic}}{D}$$
+
+Extrinsic per day is the straight-line decay to expiry. Black-Scholes theta at the contract's IV
+(section 3, divided by 365) is shown beside it; near expiry the two diverge because time value
+does not decay in a straight line. Extrinsic can be negative: a European-style price sits below
+spot intrinsic when carry is large (the strike is paid later, discounted), and on a listed American
+option a negative value usually means a stale or crossed quote. It is shown, not hidden.
+
+**Breakeven and odds.** For the buyer at expiry:
+
+$$\text{BE}_{\text{call}} = K + m \qquad \text{BE}_{\text{put}} = K - m \qquad
+\text{move} = \frac{\text{BE}}{S} - 1$$
+
+Probability ITM is $\Phi(d_2)$ for a call and $\Phi(-d_2)$ for a put at the contract's IV
+(section 11): risk-neutral odds, not a forecast. IV and Greeks are solved from $m$ (section 3).
+
+**Versus realized vol.** Price the same contract at trailing realized vol $\sigma_{\text{RV}}$
+(section 2, close-to-close over 10, 21 or 63 sessions):
+
+$$V_{\text{RV}} = \text{BS}(S, K, T, r, q, \sigma_{\text{RV}}) \qquad
+\text{gap} = m - V_{\text{RV}} \qquad \Delta\sigma = 100\,(\sigma_{\text{IV}} - \sigma_{\text{RV}})$$
+
+Price rises with vol, so $\text{sign}(\text{gap}) = \text{sign}(\Delta\sigma)$. The label uses vol
+points so one tolerance means the same thing across strikes, where the dollar gap shrinks with vega:
+
+$$\Delta\sigma > 1:\ \text{overpriced vs realized} \qquad \Delta\sigma < -1:\ \text{underpriced vs realized}
+\qquad \text{else in line}$$
+
+Realized vol is backward-looking and the market prices the vol it expects ahead, so this is the
+variance risk premium for one contract (section 4), not a signal.
+
+**Seller yield.** With fill $p$ (the bid by default, the mark on request), return on the cash at
+work. Covered call, cash at work $S - p$:
+
+$$r_{\text{unchanged}} = \frac{p - \text{intrinsic}}{S - p} \qquad r_{\text{called}} = \frac{p + K - S}{S - p}$$
+
+Cash-secured put, cash at work $K - p$:
+
+$$r_{\text{unchanged}} = \frac{p - \text{intrinsic}}{K - p} \qquad r_{\text{not assigned}} = \frac{p}{K - p}$$
+
+If unchanged keeps only the time value: an in-the-money option is exercised and hands its
+intrinsic back, so counting intrinsic as yield overstates it. For an out-of-the-money contract the
+two rows of a put coincide. Annualized two ways:
+
+$$r_{\text{simple}} = r \cdot \frac{365}{D} \qquad \text{APY} = (1 + r)^{365/D} - 1$$
+
+APY compounds the same trade back to back for a year, which no one can do at the same price, so
+read it as a ceiling. Commissions, dividends and early assignment are ignored.
+
+---
+
+## 14. Simulation and scenarios
+
+What the scenarios page computes. Time steps are trading days, $\Delta t = 1/252$; $\mu$ is the
+annual price drift (risk-neutral default $r - q$), $\sigma$ the annual vol, $Z \sim N(0, 1)$.
+
+**Geometric Brownian motion**, stepped exactly in log space:
+
+$$\ln S_{t+\Delta t} = \ln S_t + \left(\mu - \tfrac{1}{2}\sigma^2\right)\Delta t + \sigma\sqrt{\Delta t}\,Z$$
+
+$$E[S_T] = S_0 e^{\mu T} \qquad \text{median}(S_T) = S_0 e^{(\mu - \sigma^2/2)T}$$
+
+The gap between the two is volatility drag: the average grows at $\mu$, the typical path at
+$\mu - \sigma^2/2$.
+
+**Jump diffusion** (Merton). Jumps arrive at rate $\lambda$ a year with log size
+$Y \sim N(m_J, s_J^2)$; the compensator keeps the mean at $S_0 e^{\mu T}$:
+
+$$k = e^{m_J + s_J^2/2} - 1 \qquad
+\ln \frac{S_{t+\Delta t}}{S_t} = \left(\mu - \lambda k - \tfrac{1}{2}\sigma^2\right)\Delta t
++ \sigma\sqrt{\Delta t}\,Z + \sum_{j=1}^{N_t} Y_j, \quad N_t \sim \text{Poisson}(\lambda\Delta t)$$
+
+**Historical bootstrap.** Standardize stored daily log returns, $z_i = (r_i - \bar r)/s_r$,
+resample them in blocks of $b$ consecutive sessions, and rescale to the chosen drift and vol:
+
+$$\ln \frac{S_{t+\Delta t}}{S_t} = \left(\mu - \tfrac{1}{2}\sigma^2\right)\Delta t + \sigma\sqrt{\Delta t}\,z^*$$
+
+History supplies the shape (skew, fat tails, short-range clustering); the inputs supply the level.
+
+**Reading the paths.** Percentile bands per step; $P(\text{finish up}) = \frac{1}{N}\sum
+\mathbb{1}[S_T > S_0]$; touch probability $\frac{1}{N}\sum \mathbb{1}[\max_t S_t \ge L]$ (or $\min$
+for a level below spot), roughly twice the probability of finishing beyond $L$ (reflection
+principle); worst drawdown per path $\min_t \left(S_t / \max_{u \le t} S_u - 1\right)$.
+
+**Position P&L.** Legs are priced with section 3 at implied vol $\sigma_{\text{IV}}$ and marked at
+the horizon $h$ with $D - h$ sessions left, $T = (D - h)/252$:
+
+$$\text{P\&L} = \sum_{\text{legs}} q_\ell \cdot 100 \cdot \left[V_\ell(S_h, T) - V_\ell(S_0, D/252)\right]$$
+
+**Value at risk and expected shortfall**, read straight off the simulated outcomes, no normal
+approximation (the project rule in section 10):
+
+$$\text{VaR}_\alpha = -Q_{1-\alpha}(\text{P\&L}) \qquad
+\text{ES}_\alpha = -E\left[\text{P\&L} \mid \text{P\&L} \le Q_{1-\alpha}\right]$$
+
+**Fair-game check.** Simulate with $\sigma = \sigma_{\text{IV}}$ and $\mu = r - q$ and the
+expected P&L is close to zero, the carry on the premium aside. The difference from the expected
+P&L at the chosen model and realized vol is the edge from vol, drift or tail shape, before costs.
+
+**Delta-hedged option.** Buy ($s = 1$) or sell ($s = -1$) one option at $\sigma_{\text{IV}}$ and
+hold $-s\,\Delta_i$ shares, $\Delta_i$ the Black-Scholes delta at $\sigma_{\text{IV}}$, rebalanced
+every $k$ sessions. Each holding earns its price change less carry, compounded to expiry:
+
+$$\text{P\&L} = s\left[\text{payoff}(S_T) - V_0 e^{rT}\right]
++ \sum_i h_i\left[S_{i+1} - S_i e^{(r-q)\Delta t}\right] e^{r(T - t_{i+1})}$$
+
+In the limit of continuous hedging the mean is approximately
+
+$$E[\text{P\&L}] \approx s \cdot \tfrac{1}{2}\sum_i \Gamma_i S_i^2 \left(\sigma_{\text{RV}}^2 - \sigma_{\text{IV}}^2\right)\Delta t$$
+
+so a hedged option is a position in variance: it breaks even where realized equals implied.
+
+**Sizing.** A bet that wins $b$ per 1 staked with probability $p$, staking fraction $f$:
+
+$$W_{n+1} = W_n(1 + f b) \text{ or } W_n(1 - f) \qquad
+g(f) = p\ln(1 + f b) + (1 - p)\ln(1 - f) \qquad f^* = p - \frac{1 - p}{b}$$
+
+$g$ is the growth of the median bankroll. It peaks at Kelly $f^*$ and turns negative near
+$2f^*$, while the mean bankroll keeps rising with $f$, carried by a few lucky paths.
+
+**Replay.** A historical window rescaled to today's spot,
+$S_t^{\text{replay}} = S_0 \cdot P_{t_0 + t}/P_{t_0}$, with implied vol scaled by VIX over the same
+window, $\sigma_t = \sigma_{\text{IV}} \cdot \text{VIX}_{t_0+t}/\text{VIX}_{t_0}$.
+
+
+---
+
 *2026-07-10: initial formula reference.*
+*2026-07-13: section 11, pot odds.*
+*2026-08-09: section 12, regime flag.*
+*2026-10-07: section 13, single-contract metrics.*
+*2026-10-07: section 14, simulation and scenarios.*

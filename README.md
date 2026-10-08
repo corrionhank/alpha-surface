@@ -45,6 +45,17 @@ python -m present.terminal --symbol SPY --interval 1h --tail 12
 streamlit run src/present/streamlit_app.py
 ```
 
+With tastytrade credentials (copy `.env.example` to `.env` and fill in the client secret and
+refresh token from a read-only OAuth app), the pages default to live tastytrade data and the
+collector stores it:
+
+```bash
+python -m collector.tastytrade_collector     # market metrics for the universe, SPY and QQQ chains
+```
+
+The site opens on a landing page. Sign-in is a mock: any email and password, or "Continue with
+the demo account", gets you into the app. A browser refresh signs you out.
+
 Storage model: `docs/schema.md` (`ohlcv` table). tastytrade metrics/chains and the derive
 layer (IVR/IVP/VRP/regime) build on this shape later.
 
