@@ -230,3 +230,6 @@ config/config.toml
 
 # Claude Code project settings
 .claude/
+
+# Study output: regenerate with `python -m studies.protective_puts`
+studies/**/figures/

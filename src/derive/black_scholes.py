@@ -42,6 +42,23 @@ def price(
     return K * math.exp(-r * T) * norm.cdf(-d2) - S * math.exp(-q * T) * norm.cdf(-d1)
 
 
+def itm_probability(
+    S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0, kind: str = "call"
+) -> float:
+    """Probability of expiring in the money: Phi(d2) for a call, Phi(-d2) for a put.
+
+    Read it as P(S_T > K) and P(S_T < K). Pass implied vol and you get the market's own odds;
+    pass realized vol and you get the odds under the historical distribution. The gap between
+    the two is the variance risk premium. Risk-neutral, so it drifts at r - q, not at any
+    expected return.
+    """
+    if T <= 0 or sigma <= 0:
+        itm = (S > K) if kind == "call" else (S < K)
+        return 1.0 if itm else 0.0
+    _, d2 = _d1_d2(S, K, T, r, sigma, q)
+    return float(norm.cdf(d2) if kind == "call" else norm.cdf(-d2))
+
+
 def greeks(
     S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0, kind: str = "call"
 ) -> Greeks:

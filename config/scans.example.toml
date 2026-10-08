@@ -1,0 +1,32 @@
+# Saved scans for `python -m collector.scan --saved <name>`.
+# Copy to config/scans.toml and edit; the CLI reads scans.toml when it exists, else this file.
+# Filter keys: dte_min, dte_max, zero_dte, dist_max, delta_min, delta_max, min_oi, min_volume,
+# max_spread, max_spread_pct, min_premium, side. Params are each preset's thresholds
+# (python -m collector.scan --list, and docs/scanner.md).
+
+[index_rich]
+preset = "rich"
+symbols = ["SPY", "QQQ", "IWM"]
+max_expiries = 3
+
+[index_rich.params]
+gap_min = 4.0
+
+[stale_movers]
+preset = "stale"
+symbols = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA", "AMZN", "META", "MSFT"]
+max_expiries = 2
+
+[stale_movers.filters]
+dte_max = 21
+min_oi = 500
+
+[zero_dte_index]
+preset = "zero_dte"
+symbols = ["SPY", "QQQ", "IWM"]
+max_expiries = 1
+
+[unusual_megacaps]
+preset = "unusual"
+symbols = ["AAPL", "NVDA", "TSLA", "AMZN", "META", "MSFT", "GOOGL"]
+max_expiries = 4
