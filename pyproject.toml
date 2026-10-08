@@ -25,6 +25,7 @@ dependencies = [
     "rich>=13.0",               # terminal formatting and tables
     "textual>=0.60",            # TUI (optional v1.5)
     "streamlit>=1.35",          # LAN web dashboard (intermediate)
+    "plotly>=5.20",             # 3D vol surface; price charts stay on TradingView Lightweight
     # Config / utilities
     "python-dotenv>=1.0",
 ]
@@ -66,3 +67,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
