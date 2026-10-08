@@ -1,81 +1,101 @@
 # DuckDB Schema Design
 
-Storage: Parquet files at `data/parquet/{table}/year={Y}/month={M}/day={D}/`, queried via DuckDB views. A `data/market.duckdb` file holds the view definitions and the `derived_metrics` table (computed, not raw data).
+Storage: Parquet under `data/parquet/{table}/`, queried via DuckDB views. `ohlcv` is one file per series, `ohlcv/{interval}/{symbol}.parquet` (2026-10-07; day partitions made every query open thousands of files). Append-only tables (`option_chain` and the reference tables) are partitioned `year={Y}/month={M}/day={D}/`, one file per pull. A `data/market.duckdb` file holds the view definitions and the `derived_metrics` table (computed, not raw data).
 
 All timestamps are UTC (`TIMESTAMPTZ`). The `collected_at` column on every raw table enables point-in-time querying (see Open Decision #1).
 
 ---
 
-## Table: `market_metrics`
+## Table: `market_metrics` (implemented 2026-10-08)
 
-Source: tastytrade `/market-metrics` endpoint. Collected hourly during market hours.
+Source: tastytrade `/market-metrics`, through `collector.feed.metrics()`. Written by
+`python -m collector.tastytrade_collector` and by the overview page when its copy is older than
+15 minutes. Append-only, one file per pull under `data/parquet/market_metrics/year=/month=/day=/`,
+read with `storage.reference`.
 
-```sql
-CREATE TABLE market_metrics (
-    collected_at        TIMESTAMPTZ NOT NULL,
-    symbol              VARCHAR     NOT NULL,
-    -- Implied volatility (tastytrade pre-computed)
-    iv                  DOUBLE,     -- 30-day constant-maturity IVx
-    iv_rank             DOUBLE,     -- IVR: (current - 52w_low) / (52w_high - 52w_low)
-    iv_percentile       DOUBLE,     -- IVP: fraction of last 252d with IV < current
-    iv_5d_change        DOUBLE,     -- 5-day IV change (annualized)
-    hv_30d              DOUBLE,     -- 30-day historical (realized) volatility
-    iv_minus_hv         DOUBLE,     -- VRP proxy (IV − HV); positive = vol rich
-    -- Expected move (pre-computed by tastytrade, in underlying price units)
-    em_up               DOUBLE,     -- 1 SD expected move up
-    em_down             DOUBLE,     -- 1 SD expected move down
-    em_pct              DOUBLE,     -- expected move as % of spot
-    -- Context
-    beta_to_spy         DOUBLE,
-    liquidity_rating    VARCHAR,    -- 'A', 'B', 'C', 'D'
-    -- Spot price at collection time
-    spot                DOUBLE,
-    PRIMARY KEY (collected_at, symbol)
-);
+| Column | Unit | From tastytrade |
+|---|---|---|
+| `collected_at`, `source` | UTC, `tastytrade` | |
+| `symbol` | | |
+| `ivx` | decimal | `implied-volatility-index`: 30-day constant-maturity IV |
+| `ivx_5d_change` | decimal | `implied-volatility-index-5-day-change` |
+| `iv_rank` | 0 to 1 | `implied-volatility-index-rank`, the primary rank; `iv_rank_source` says whose |
+| `iv_rank_tw`, `iv_rank_tos` | 0 to 1 | tastytrade's two published ranks |
+| `iv_percentile` | 0 to 1 | `implied-volatility-percentile` |
+| `iv30`, `hv30`, `hv60`, `hv90` | decimal | published in percent (15.41), divided by 100 here |
+| `iv_hv_diff` | vol points | `iv-hv-30-day-difference`, kept in points as published |
+| `liquidity_rating`, `beta`, `corr_spy_3m` | | |
+| `earnings_date`, `earnings_time` | date, BMO/AMC | `earnings.expected-report-date` |
+| `dividend_ex_date`, `updated_at` | | |
+
+Units are normalized on write (tests/test_tastytrade.py): every vol and rank is a decimal. SPY's
+`ivx` was checked against VIX on 2026-10-08 (15.4% against 15.41).
+
+## Table: `iv_term`
+
+Same source and pull as `market_metrics`: one row per symbol and listed expiry from
+`option-expiration-implied-volatilities`. Columns `collected_at`, `source`, `symbol`, `expiry`
+(YYYY-MM-DD), `settlement` (AM/PM), `chain_type`, `iv` (decimal). The per-name IV term structure,
+kept from day one so its history exists later.
+
+---
+
+## Data flow: the market-data gateway
+
+```
+provider (collector/chains.py, yfinance bars)
+    -> collector/feed.py
+         -> caller, at once: pages and scans analyze the frame in memory
+         -> Parquet + DuckDB: option_chain (append-only), ohlcv (upsert)
 ```
 
-**Notes:**
-- Compute own IVR in `derived_metrics` alongside tastytrade's for validation; they should agree within noise.
-- `iv` = IVx (VIX-style variance-strip for the 30-day constant-maturity expiry). Tastytrade calls this "implied-volatility-index."
+Every pull goes through `collector.feed`: the chain and surface pages, the scanner page and
+`python -m collector.scan` alike. The caller gets the frame back immediately; the same frame is
+stored for backtests. A failed write is logged and never breaks the caller. Synthetic chains are
+never stored. A tastytrade provider plugs in behind `feed.chain()` with no caller changing.
+
+Concurrency (several Streamlit sessions plus the CLI): `option_chain` writes each pull as its own
+new file (`HHMMSSffffff-<uuid>.parquet` in the day partition, written to a temp name and renamed),
+so writers never share a file and nothing is re-read on write; duplicates from a retry are
+dropped at read time by the view. `ohlcv` keeps its read-modify-write upsert, now under an
+exclusive file lock (`ohlcv/.lock`) and a temp-file rename.
 
 ---
 
 ## Table: `option_chain`
 
-Source: tastytrade option chains (dxFeed stream). Collected hourly. **Store only a strike band around spot** (~3 strikes each side per expiry for the key expirations), not full chains.
-
-Key expirations to capture: weekly nearest + ~30 DTE + ~45 DTE + ~60 DTE.
+Source: any chain provider through `collector.feed` (yfinance today, tastytrade later). One row per
+contract per pull, raw quotes only. Implied vol and Greeks are solved at read time from the stored
+quote (`derive.scan`, `derive.option_metrics`), so they carry our rate and dividend assumptions.
+Implemented 2026-10-07 (`storage/schema.py`, `storage/writer.append_chain`).
 
 ```sql
-CREATE TABLE option_chain (
-    collected_at    TIMESTAMPTZ NOT NULL,
-    symbol          VARCHAR     NOT NULL,
-    expiration      DATE        NOT NULL,
-    dte             SMALLINT,               -- calendar days to expiry at collection
-    strike          DOUBLE      NOT NULL,
-    option_type     CHAR(1)     NOT NULL,   -- 'C' or 'P'
-    -- Greeks (from dxFeed)
-    iv              DOUBLE,                 -- per-strike implied vol (annualized)
-    delta           DOUBLE,
-    gamma           DOUBLE,
-    theta           DOUBLE,
-    vega             DOUBLE,
-    rho             DOUBLE,
-    -- Market
-    bid             DOUBLE,
-    ask             DOUBLE,
-    mid             DOUBLE,                 -- (bid + ask) / 2
-    last            DOUBLE,
-    volume          INTEGER,
-    open_interest   INTEGER,
-    PRIMARY KEY (collected_at, symbol, expiration, strike, option_type)
-);
+-- Parquet: data/parquet/option_chain/year=Y/month=M/day=D/<HHMMSSffffff>-<uuid>.parquet
+CREATE VIEW option_chain AS
+SELECT collected_at, source, symbol, expiry, strike, kind, bid, ask, last, volume,
+       open_interest, underlying, underlying_prev, change, last_trade
+FROM read_parquet('.../option_chain/**/*.parquet', hive_partitioning=true, union_by_name=true)
+QUALIFY row_number() OVER (
+    PARTITION BY collected_at, source, symbol, expiry, strike, kind) = 1;
 ```
 
-**Notes:**
-- Strike band: keep strikes between 0.85× and 1.15× spot (adjustable). This captures the core skew and covers typical 1–2 SD moves.
-- Footprint: ~250–300 MB/year for the focused set; full chains ~3 GB/year (still within budget).
-- The 25-delta risk reversal and put-call skew are derived: query IV at ~25Δ put vs. ~25Δ call.
+| Column | Type | Meaning |
+|---|---|---|
+| `collected_at` | TIMESTAMPTZ | when the quote was captured (the provider's `ts`), UTC |
+| `source` | VARCHAR | provider name, e.g. `yfinance` |
+| `symbol`, `expiry`, `strike`, `kind` | | the contract; `expiry` is `YYYY-MM-DD`, `kind` is `call` or `put` |
+| `bid`, `ask`, `last` | DOUBLE | as quoted; yfinance reads 0 bid and ask outside market hours |
+| `volume`, `open_interest` | DOUBLE | as quoted |
+| `underlying` | DOUBLE | spot at capture |
+| `underlying_prev` | DOUBLE | the underlying's prior session close, when the provider gives it |
+| `change` | DOUBLE | the option's last print minus its prior close, vendor-reported |
+| `last_trade` | TIMESTAMPTZ | the option's last trade time, when given |
+
+Primary key `(collected_at, source, symbol, expiry, strike, kind)`. The chain page stores one expiry
+per pull, the surface page up to ten, a scan the expiries its date filter allows (at most
+`max_expiries`). `storage.reader.previous_chain` returns the latest stored quote of every contract
+before a time, which is what scans compare against. Footprint: a full SPY or QQQ expiry is about 450
+rows, about 25 KB of Parquet per pull (measured 2026-10-07).
 
 ---
 
@@ -231,9 +251,7 @@ After writing Parquet files, register them as views:
 CREATE OR REPLACE VIEW market_metrics AS
 SELECT * FROM read_parquet('data/parquet/market_metrics/**/*.parquet', hive_partitioning=true);
 
--- option_chain view
-CREATE OR REPLACE VIEW option_chain AS
-SELECT * FROM read_parquet('data/parquet/option_chain/**/*.parquet', hive_partitioning=true);
+-- option_chain view: see the table section above (read-time dedup with QUALIFY)
 
 -- etc.
 ```
@@ -247,3 +265,6 @@ Hive partitioning by `year`/`month`/`day` lets DuckDB push down date filters wit
 - **PIT-correct**: the `collected_at` column on all raw tables enables "what did we know at time T?" queries. This is the recommended design even for v1 — it costs nothing extra to collect and enables Phase-2 conditional base rates.
 - **Deduplication**: the tastytrade collector runs hourly; if a run fails and retries, ensure upsert semantics (`INSERT OR REPLACE` / `ON CONFLICT DO UPDATE`) so duplicates don't accumulate in the Parquet files.
 - **Partition granularity**: day-level partitioning is right for the hourly and daily series. Finer (hourly) partitioning isn't needed at this data volume.
+
+*2026-10-07: market-data gateway (`collector/feed.py`); `option_chain` implemented as append-only files with read-time dedup; `ohlcv` writes locked.*
+*2026-10-08: `market_metrics` and `iv_term` implemented from tastytrade; `option_chain` now also holds `source = 'tastytrade'` pulls (DXLink streamer quotes).*
