@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from derive import black_scholes as bs
+from present import theme
+from present.surface_charts import apply_layout
 
-st.title("Black-Scholes pricing")
-st.caption("European options, continuous dividend yield. Formulas: Docs and Formulas, section 3.")
+theme.intro("Black-Scholes pricing", eyebrow="Pricing", tag="European, continuous dividend")
 
 with st.sidebar:
     st.header("Inputs")
@@ -27,7 +29,9 @@ c1, c2 = st.columns(2)
 c1.metric("Call price", f"{call.price:.4f}")
 c2.metric("Put price", f"{put.price:.4f}")
 
-st.subheader("Greeks")
+greeks_card = theme.card("greeks")
+with greeks_card:
+    theme.panel_head("Greeks", "Per share")
 greeks_df = pd.DataFrame(
     {
         "Call": [call.delta, call.gamma, call.vega / 100, call.theta / 365, call.rho / 100],
@@ -35,15 +39,23 @@ greeks_df = pd.DataFrame(
     },
     index=["Delta", "Gamma", "Vega (per 1% vol)", "Theta (per day)", "Rho (per 1% rate)"],
 )
-st.dataframe(greeks_df.style.format("{:.4f}"), width="stretch")
+greeks_card.dataframe(greeks_df.style.format("{:.4f}"), width="stretch")
 
-st.subheader("Value vs spot")
+curve_card = theme.card("curve")
+with curve_card:
+    theme.panel_head("Value vs spot")
 spots = np.linspace(0.5 * K, 1.5 * K, 120)
-curve = pd.DataFrame(
-    {
-        "Call": [bs.price(s, K, T, r, sigma, q, "call") for s in spots],
-        "Put": [bs.price(s, K, T, r, sigma, q, "put") for s in spots],
-    },
-    index=spots,
-)
-st.line_chart(curve, height=320)
+fig = go.Figure()
+for kind, color, dash in (("call", theme.TOKENS["fg"], "solid"), ("put", theme.TOKENS["ink_2"], "dash")):
+    values = [bs.price(s, K, T, r, sigma, q, kind) for s in spots]
+    fig.add_trace(go.Scatter(
+        x=spots, y=values, mode="lines", name=kind.title(), line=dict(color=color, width=2, dash=dash),
+        hovertemplate=f"S %{{x:.2f}}<br>{kind} %{{y:.4f}}<extra></extra>",
+    ))
+fig.add_vline(x=K, line=dict(color=theme.TOKENS["line_strong"], width=1, dash="dot"),
+              annotation_text="strike", annotation_font_color=theme.TOKENS["fg_subtle"])
+fig.update_xaxes(title="spot")
+fig.update_yaxes(title="option value")
+fig = apply_layout(fig, 340)
+fig.update_layout(legend=dict(orientation="h", x=0, y=1.1))
+curve_card.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
