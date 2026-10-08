@@ -2,14 +2,20 @@
 # config/config.toml is gitignored — never commit secrets.
 
 [tastytrade]
-username = ""
-password = ""
-# Set to true to use the paper-trading sandbox (different base URL)
-paper_trading = false
+# OAuth, as the installed tastytrade SDK (12.x) expects. In the tastytrade web platform's API access
+# settings, create a personal OAuth application with the READ scope only (no trade scope, so
+# these credentials cannot place orders), copy its client secret, then create a grant for it
+# to get a refresh token.
+# Credentials now live in .env at the repo root (see .env.example).
+# provider_secret = ""
+# refresh_token = ""
+# Set to true to use the tastytrade sandbox (cert environment)
+is_test = false
 
 [storage]
-# Absolute path on the host machine to the data directory
-data_dir = "/home/user/data/market"
+# Absolute path to the data directory. Leave commented to use the repo's data/ folder;
+# set it on the Linux host, e.g. "/home/<user>/data/market".
+# data_dir = "/home/user/data/market"
 # DuckDB database file (relative to data_dir)
 db_file = "market.duckdb"
 
@@ -23,10 +29,23 @@ strike_band_pct = 0.15   # ± 15% from spot
 
 [fred]
 # Get a free API key at https://fred.stlouisfed.org/docs/api/api_key.html
+# The overview's economic calendar falls back to FRED release dates with this key, but only if
+# the installed yfinance has no economic calendar of its own.
 api_key = ""
 
 [news]
-# Finnhub: https://finnhub.io — free tier
+# Finnhub: https://finnhub.io, free tier. When set, the overview's news feed adds Finnhub
+# general market news to the Yahoo Finance headlines. Leave blank to send nothing to Finnhub.
 finnhub_api_key = ""
 # Marketaux: https://www.marketaux.com — 100 req/day free
 marketaux_api_key = ""
+
+[notify]
+# Scanner alerts (python -m collector.scan). Off unless enabled. When on, new hits raise a local
+# macOS notification; set ntfy_url (e.g. "https://ntfy.sh/your-private-topic") to also push to a
+# phone. Nothing is sent anywhere unless configured here.
+enabled = false
+macos = true
+ntfy_url = ""
+# The same hit notifies again only after this many hours.
+cooldown_hours = 24

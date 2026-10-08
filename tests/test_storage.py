@@ -67,3 +67,24 @@ def test_multi_symbol_and_summary(config):
     assert s["symbol"] == "SPY"
     assert s["last"] == 505
     assert s["change_pct"] == pytest.approx(1.0)
+
+
+def test_one_file_per_series(config):
+    writer.write_ohlcv(_bars("SPY", [500, 501]), config)
+    writer.write_ohlcv(_bars("QQQ", [400, 401]), config)
+    files = sorted(p.relative_to(config.parquet_dir / "ohlcv").as_posix()
+                   for p in (config.parquet_dir / "ohlcv").rglob("*.parquet"))
+    assert files == ["1h/QQQ.parquet", "1h/SPY.parquet"]
+
+
+def test_compact_moves_day_partitions_aside(config):
+    old = config.parquet_dir / "ohlcv" / "year=2026" / "month=7" / "day=10" / "data.parquet"
+    old.parent.mkdir(parents=True)
+    _bars("SPY", [500, 501, 502]).to_parquet(old, index=False)
+    writer.write_ohlcv(_bars("SPY", [500, 555], start="2026-07-10 14:30"), config)  # overlaps
+    out = writer.compact_ohlcv(config)
+    assert out["moved"] == 1 and not old.exists()
+    with schema.connect(config, persistent=False) as conn:
+        df = reader.get_ohlcv(conn, "SPY", "1h")
+    assert df["close"].tolist() == [500, 500, 555]  # the series file's newer rows won
+    assert writer.compact_ohlcv(config)["moved"] == 0

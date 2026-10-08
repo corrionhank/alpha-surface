@@ -36,3 +36,35 @@ def latest_bar(
         f"{_SELECT} WHERE symbol = ? AND interval = ? ORDER BY ts DESC LIMIT 1", [symbol, interval]
     ).df()
     return None if df.empty else df.iloc[0]
+
+
+def previous_chain(
+    conn: duckdb.DuckDBPyConnection, symbols: list[str], before, source: str | None = None,
+    lookback_days: float = 4.0,
+) -> pd.DataFrame:
+    """The latest stored quote for every contract of these symbols strictly before `before`,
+    within lookback_days: what a scan compares against. Per contract rather than per pull, since
+    a page may have stored one expiry at a time. Empty when nothing was stored yet."""
+    if not symbols:
+        return pd.DataFrame()
+    before = pd.Timestamp(before)
+    marks = ", ".join("?" for _ in symbols)
+    src = "AND source = ?" if source else ""
+    params = [*symbols, before, before - pd.Timedelta(days=lookback_days), *([source] if source else [])]
+    return conn.execute(
+        f"""
+        SELECT * FROM option_chain
+        WHERE symbol IN ({marks}) AND collected_at < ? AND collected_at >= ? {src}
+        QUALIFY row_number() OVER (
+            PARTITION BY symbol, expiry, strike, kind ORDER BY collected_at DESC) = 1
+        """,
+        params,
+    ).df()
+
+
+def chain_pulls(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    """One row per stored pull: when, from where, which symbol, how many contracts."""
+    return conn.execute(
+        "SELECT collected_at, source, symbol, count(*) AS contracts FROM option_chain "
+        "GROUP BY ALL ORDER BY collected_at DESC"
+    ).df()
