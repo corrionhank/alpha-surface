@@ -21,8 +21,6 @@ jobs:
     name: Lint and test
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DIP_DATA_DIR: ${{ runner.temp }}/data
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +35,8 @@ jobs:
       - name: Lint
         run: ruff check src tests studies
       - name: Test
+        env:
+          DIP_DATA_DIR: ${{ runner.temp }}/data  # an empty store: data-dependent tests skip
         run: pytest -q
 
   image:
