@@ -8,10 +8,15 @@ equities = ["SPY", "QQQ", "IWM", "DIA"]
 futures = ["/ES", "/NQ", "/RTY"]
 
 [vol_complex]
-# VIX family — fetched via yfinance (prefix ^)
-vix = ["^VIX", "^VIX1D", "^VVIX", "^VIX3M"]
+# VIX family — fetched via yfinance (prefix ^). VXN is the Nasdaq-100 30-day implied;
+# VIX1D / VIX9D / VIX3M / VIX6M make the term curve; VVIX and SKEW price the vol and the tail.
+vix = ["^VIX", "^VIX1D", "^VIX9D", "^VIX3M", "^VIX6M", "^VVIX", "^SKEW", "^VXN"]
 # Cross-asset vol: MOVE (bonds), GVZ (gold), OVX (crude) — availability TBD
 cross_asset = ["^MOVE", "GVZ", "OVX"]
+
+[macro_etfs]
+# Cross-asset ETFs for the fear/greed lens (safe-haven and junk-bond demand) and the watchlist.
+etfs = ["TLT", "IEF", "HYG", "GLD"]
 
 [single_names]
 # Open Decision #2: populate after deciding on universe
