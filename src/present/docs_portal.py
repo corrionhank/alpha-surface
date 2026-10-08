@@ -12,10 +12,13 @@ import re
 import streamlit as st
 
 from config import REPO_ROOT
+from present import theme
 
 # (label, path relative to repo root)
 DOCS: list[tuple[str, str]] = [
     ("Formulas and metrics", "docs/formulas.md"),
+    ("Dashboard", "docs/dashboard.md"),
+    ("Scanner", "docs/scanner.md"),
     ("Requirements", "docs/requirements.md"),
     ("Data schema", "docs/schema.md"),
     ("Open decisions", "docs/open-decisions.md"),
@@ -44,8 +47,7 @@ def render_doc(text: str) -> None:
         st.markdown(tail)
 
 
-st.title("Docs and formulas")
-st.caption("Project documentation and the quant/vol formula reference, rendered from the repo.")
+theme.intro("Docs and formulas", eyebrow="Reference")
 
 available = [(label, rel) for label, rel in DOCS if (REPO_ROOT / rel).exists()]
 
@@ -57,11 +59,11 @@ with st.sidebar:
 rel = dict(available)[choice]
 text = (REPO_ROOT / rel).read_text(encoding="utf-8")
 
-st.markdown(f"`{rel}`")
-
+matches = None
 if query:
     blocks = [b for b in text.split("\n\n") if query.lower() in b.lower()]
-    st.info(f"{len(blocks)} block(s) matching '{query}'.")
-    render_doc("\n\n".join(blocks) if blocks else "_No matches._")
-else:
+    matches = f"{len(blocks)} matches for '{query}'"
+    text = "\n\n".join(blocks) if blocks else "_No matches._"
+with theme.card("doc"):
+    theme.panel_head(choice, matches or rel)
     render_doc(text)

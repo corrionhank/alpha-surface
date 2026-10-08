@@ -1,13 +1,46 @@
-# Streamlit theme modeled on massive.com: light, white with electric-blue accent, bold type.
-# Component polish (cards, headings, chrome) lives in src/present/theme.py.
+# Light monochrome theme from .claude/STYLE_GUIDE.md: black on warm off-white, serif headings,
+# color only for status. Colors must match theme.STREAMLIT in src/present/theme.py
+# (tests/test_theme.py enforces it). Changing this file needs a server restart.
 
 [theme]
 base = "light"
-primaryColor = "#2C5CF6"              # electric blue accent
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F7F8FA"  # sidebar and panels
-textColor = "#0F172A"
-linkColor = "#2C5CF6"
-borderColor = "#E5E7EB"
-baseRadius = "0.6rem"
-font = "sans serif"
+primaryColor = "#111111"
+backgroundColor = "#f7f7f6"
+secondaryBackgroundColor = "#f1f1ef"
+textColor = "#111111"
+linkColor = "#111111"
+borderColor = "#cfcfcb"
+dataframeBorderColor = "#e4e4e1"
+dataframeHeaderBackgroundColor = "#f1f1ef"
+codeBackgroundColor = "#f1f1ef"
+codeTextColor = "#4a4a4a"
+greenColor = "#1d7a3e"
+orangeColor = "#8f5b00"
+yellowColor = "#8f5b00"
+redColor = "#b42318"
+chartCategoricalColors = ["#111111", "#8a8a86", "#cfcfcb"]
+
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:wght@400&display=swap"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+baseFontWeight = 400
+headingFontWeights = [400, 600, 600, 600, 600, 600]
+headingFontSizes = ["1.75rem", "1rem", "1rem", "0.9375rem", "0.875rem", "0.875rem"]
+metricValueFontSize = "1.375rem"
+metricValueFontWeight = 600
+baseRadius = "6px"
+buttonRadius = "4px"
+linkUnderline = false
+showWidgetBorder = true
+showSidebarBorder = true
+
+[theme.sidebar]
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f1ef"
+borderColor = "#cfcfcb"
+
+[server]
+runOnSave = true
+
+[browser]
+gatherUsageStats = false

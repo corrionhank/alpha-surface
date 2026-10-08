@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
+
+from derive.market_state import rolling_vol
 
 # 1h RTH bars per year: 6.5 trading hours * 252 sessions.
 _BARS_PER_YEAR = {"1h": 6.5 * 252, "1d": 252.0}
@@ -11,11 +12,10 @@ _BARS_PER_YEAR = {"1h": 6.5 * 252, "1d": 252.0}
 
 def realized_vol(close: pd.Series, interval: str) -> float:
     """Annualized close-to-close volatility in percent, or NaN if too few bars."""
-    logret = np.log(close / close.shift(1)).dropna()
-    if len(logret) < 2:
+    if len(close) < 3:
         return float("nan")
-    ann = np.sqrt(_BARS_PER_YEAR.get(interval, 252.0))
-    return float(logret.std(ddof=1) * ann * 100)
+    ann = _BARS_PER_YEAR.get(interval, 252.0)
+    return float(rolling_vol(close, window=len(close) - 1, periods_per_year=ann).iloc[-1])
 
 
 def summarize(df: pd.DataFrame) -> dict:
