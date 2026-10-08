@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+venv
+data
+.env
+.env.*
+!.env.example
+config/config.toml
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+notebooks
+.claude
+*.egg-info
