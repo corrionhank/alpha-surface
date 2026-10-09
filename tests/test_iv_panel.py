@@ -8,11 +8,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from derive import funds, iv_panel
+from alphasurface.derive import funds, iv_panel
 
 
 def _s(values, start="2025-01-01"):
-    return pd.Series(np.asarray(values, dtype=float), index=pd.bdate_range(start, periods=len(values)).date)
+    return pd.Series(
+        np.asarray(values, dtype=float), index=pd.bdate_range(start, periods=len(values)).date
+    )
 
 
 def test_changes_over_sessions():
@@ -48,11 +50,16 @@ def test_term_curve_uses_common_dates():
 def test_iv_minus_rv_aligns():
     close = _s(100 * np.exp(np.cumsum(np.full(60, 0.01))))
     gap = iv_panel.iv_minus_rv(_s(np.full(60, 20.0)), close)
-    assert len(gap) == 60 - 21 and gap.iloc[-1] == pytest.approx(20.0, abs=1e-9)  # constant drift: no vol
+    assert len(gap) == 60 - 21 and gap.iloc[-1] == pytest.approx(
+        20.0, abs=1e-9
+    )  # constant drift: no vol
 
 
 def test_priced_move_prefers_vix1d():
-    assert iv_panel.priced_move_today(_s([15.87]), _s([20.0])) == (pytest.approx(15.87 / math.sqrt(252)), "VIX1D")
+    assert iv_panel.priced_move_today(_s([15.87]), _s([20.0])) == (
+        pytest.approx(15.87 / math.sqrt(252)),
+        "VIX1D",
+    )
     assert iv_panel.priced_move_today(pd.Series(dtype=float), _s([20.0]))[1] == "VIX"
 
 

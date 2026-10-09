@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from streamlit.testing.v1 import AppTest
 
-from config import REPO_ROOT
+from alphasurface.config import REPO_ROOT
 
-PAGE = str(REPO_ROOT / "src" / "present" / "scanner.py")
+PAGE = str(REPO_ROOT / "src" / "alphasurface" / "present" / "scanner.py")
 
 
 def test_scanner_page_runs_a_synthetic_scan():

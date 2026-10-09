@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly tastytrade collection in US market hours
+
+[Timer]
+# 09:35 to 16:35 New York time, whatever the host's zone (systemd 235 or later).
+OnCalendar=Mon..Fri *-*-* 09,10,11,12,13,14,15,16:35:00 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target

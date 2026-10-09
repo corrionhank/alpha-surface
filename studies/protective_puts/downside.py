@@ -87,25 +87,41 @@ def main() -> None:
     n = len(df)
     rng = np.random.default_rng(20260715)
 
-    print(f"\nDOWNSIDE HEDGING. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
-          f"{n:,} sessions. Exploratory (see PROTOCOL.md).")
+    print(
+        f"\nDOWNSIDE HEDGING. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
+        f"{n:,} sessions. Exploratory (see PROTOCOL.md)."
+    )
 
     truth = {h: bear_ahead(spot.to_numpy(), h) for h in (ROLLS["quarterly"], 126)}
 
     # Build every signal once: the drops, plus the two stress signals from the conditional study.
     signals: list[tuple[str, np.ndarray, int]] = []
     for name, look, sigma, tenor in DOWNSIDE:
-        signals.append((name, (zscore(spot, look) < -sigma).shift(1).fillna(False).to_numpy(), tenor))
+        signals.append(
+            (name, (zscore(spot, look) < -sigma).shift(1).fillna(False).to_numpy(), tenor)
+        )
     vp = vix_percentile(vix)
-    signals.append(("VIX > 80th pct (stress)", (vp > 0.80).shift(1).fillna(False).to_numpy(),
-                    ROLLS["quarterly"]))
+    signals.append(
+        (
+            "VIX > 80th pct (stress)",
+            (vp > 0.80).shift(1).fillna(False).to_numpy(),
+            ROLLS["quarterly"],
+        )
+    )
     if "vix3m" in df:
-        signals.append(("Backwardation (VIX>VIX3M)",
-                        (vix > df["vix3m"]).shift(1).fillna(False).to_numpy(), ROLLS["quarterly"]))
+        signals.append(
+            (
+                "Backwardation (VIX>VIX3M)",
+                (vix > df["vix3m"]).shift(1).fillna(False).to_numpy(),
+                ROLLS["quarterly"],
+            )
+        )
 
     # --- CRUX 1: does the drop predict MORE drop? ---
-    print("\nCRUX 1: after the signal, is a further bear (15% drawdown within the tenor) more "
-          "likely than at a random moment?")
+    print(
+        "\nCRUX 1: after the signal, is a further bear (15% drawdown within the tenor) more "
+        "likely than at a random moment?"
+    )
     diag = {}
     for name, sig, tenor in signals:
         edges = _rising_edge(sig)
@@ -115,22 +131,35 @@ def main() -> None:
         d["fwd_base"] = uncond
         diag[name] = d
     tbl = pd.DataFrame(diag).T
-    print(tbl[["events", "precision", "base_rate", "lift", "ci_lo", "ci_hi", "beats_base"]]
-          .to_string(formatters={
-              "events": "{:.0f}".format, "precision": "{:.0%}".format, "base_rate": "{:.0%}".format,
-              "lift": "{:+.0%}".format, "ci_lo": "{:.0%}".format, "ci_hi": "{:.0%}".format,
-          }))
+    print(
+        tbl[["events", "precision", "base_rate", "lift", "ci_lo", "ci_hi", "beats_base"]].to_string(
+            formatters={
+                "events": "{:.0f}".format,
+                "precision": "{:.0%}".format,
+                "base_rate": "{:.0%}".format,
+                "lift": "{:+.0%}".format,
+                "ci_lo": "{:.0%}".format,
+                "ci_hi": "{:.0%}".format,
+            }
+        )
+    )
 
     # --- CRUX 2: but is the market actually lower afterwards, or bouncing? ---
-    print("\nCRUX 2: the tension. Mean forward return over the tenor, conditional on the signal "
-          "vs unconditional.")
-    print("A hedge only helps if conditional < unconditional. If the market is higher after the "
-          "drop on average, you are hedging a bounce.")
-    for name, sig, tenor in signals:
+    print(
+        "\nCRUX 2: the tension. Mean forward return over the tenor, conditional on the signal "
+        "vs unconditional."
+    )
+    print(
+        "A hedge only helps if conditional < unconditional. If the market is higher after the "
+        "drop on average, you are hedging a bounce."
+    )
+    for name, _sig, _tenor in signals:
         row = diag[name]
         worse = row["fwd_cond"] < row["fwd_base"]
-        print(f"  {name:<30} cond {row['fwd_cond']:+6.1%}  vs base {row['fwd_base']:+5.1%}  "
-              f"({'lower, hedge justified' if worse else 'HIGHER, buying the dip'})")
+        print(
+            f"  {name:<30} cond {row['fwd_cond']:+6.1%}  vs base {row['fwd_base']:+5.1%}  "
+            f"({'lower, hedge justified' if worse else 'HIGHER, buying the dip'})"
+        )
 
     # --- The backtest: net of expensive vol and the missed bounce. ---
     print("\nBACKTEST (event-driven: buy a 5% OTM put the day the signal fires, hold to expiry):")
@@ -143,22 +172,37 @@ def main() -> None:
         if res.hedged_cycles and args.trials:
             twins = [
                 metrics.summarize(
-                    engine.run_events(df, strat, _random_entries(n, res.hedged_cycles, tenor, rng)
-                                      ).equity, rate)["Sharpe"]
+                    engine.run_events(
+                        df, strat, _random_entries(n, res.hedged_cycles, tenor, rng)
+                    ).equity,
+                    rate,
+                )["Sharpe"]
                 for _ in range(args.trials)
             ]
             row["Beats random"] = float(np.mean(np.array(twins) < row["Sharpe"]))
         rows[name] = row
     bt = pd.DataFrame(rows).T
-    print(bt.to_string(formatters={
-        "CAGR": "{:.2%}".format, "Sharpe": "{:.3f}".format, "MaxDD": "{:.1%}".format,
-        "N hedges": "{:.0f}".format, "Beats random": lambda v: "n/a" if pd.isna(v) else f"{v:.0%}",
-    }))
+    print(
+        bt.to_string(
+            formatters={
+                "CAGR": "{:.2%}".format,
+                "Sharpe": "{:.3f}".format,
+                "MaxDD": "{:.1%}".format,
+                "N hedges": "{:.0f}".format,
+                "Beats random": lambda v: "n/a" if pd.isna(v) else f"{v:.0%}",
+            }
+        )
+    )
 
     if not args.no_figures:
         out = Path(args.outdir)
         out.mkdir(parents=True, exist_ok=True)
-        print("\nFigure:", report.precision_bars(tbl, out, "15-downside.png", title="Does a downside move predict more downside?"))
+        print(
+            "\nFigure:",
+            report.precision_bars(
+                tbl, out, "15-downside.png", title="Does a downside move predict more downside?"
+            ),
+        )
     tbl.to_csv(Path(args.outdir) / "downside-precision.csv")
 
 

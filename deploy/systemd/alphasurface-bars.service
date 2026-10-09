@@ -1,0 +1,14 @@
+[Unit]
+Description=Top up daily and hourly bars from Yahoo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__REPO__
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO__/.venv/bin/python -m alphasurface.collector.yfinance_collector --interval 1d --period 5d
+ExecStart=__REPO__/.venv/bin/python -m alphasurface.collector.yfinance_collector --interval 1h --period 5d
+TimeoutStartSec=300
+Nice=10

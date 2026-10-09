@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from derive import black_scholes as bs
+from alphasurface.derive import black_scholes as bs
 from studies.protective_puts import engine, metrics
 from studies.protective_puts.bsm import put_price
 from studies.protective_puts.engine import Strategy
@@ -104,8 +104,9 @@ def test_flat_market_loses_exactly_the_premium():
     """Price never moves, so the puts expire worthless and the book is out the premium and
     nothing else. This is the bleed, isolated."""
     data = frame(np.full(TRADING_DAYS + 1, 100.0))
-    res = engine.run(data, Strategy("put", moneyness=0.05, roll_days=21),
-                     dividend_yield=0.0, capital=10_000.0)
+    res = engine.run(
+        data, Strategy("put", moneyness=0.05, roll_days=21), dividend_yield=0.0, capital=10_000.0
+    )
     assert res.total_payoff == pytest.approx(0.0)
     assert res.total_premium > 0
     assert res.equity.iloc[-1] == pytest.approx(10_000.0 - res.total_premium, rel=1e-9)
@@ -116,8 +117,9 @@ def test_the_strike_floors_a_crash():
     paid for it, which is the entire point of buying protection."""
     path = np.concatenate([np.full(5, 100.0), np.full(17, 60.0)])
     data = frame(path, vix=0.20)
-    hedged = engine.run(data, Strategy("put", moneyness=0.0, roll_days=21),
-                        dividend_yield=0.0, capital=10_000.0)
+    hedged = engine.run(
+        data, Strategy("put", moneyness=0.0, roll_days=21), dividend_yield=0.0, capital=10_000.0
+    )
     naked = engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0, capital=10_000.0)
 
     assert naked.equity.iloc[-1] == pytest.approx(6_000.0)  # ate the whole 40%
@@ -128,8 +130,9 @@ def test_the_strike_floors_a_crash():
 def test_deeper_strikes_cost_less():
     data = frame(100 + np.zeros(TRADING_DAYS + 1))
     costs = [
-        engine.run(data, Strategy(f"m{m}", moneyness=m, roll_days=21),
-                   dividend_yield=0.0).total_premium
+        engine.run(
+            data, Strategy(f"m{m}", moneyness=m, roll_days=21), dividend_yield=0.0
+        ).total_premium
         for m in (0.0, 0.05, 0.10)
     ]
     assert costs == sorted(costs, reverse=True)  # further OTM is cheaper
@@ -161,8 +164,9 @@ def test_equity_is_marked_daily_not_just_at_expiry():
 def test_put_spread_is_cheaper_than_the_naked_put():
     data = frame(np.full(TRADING_DAYS + 1, 100.0))
     naked = engine.run(data, Strategy("p", moneyness=0.05), dividend_yield=0.0)
-    spread = engine.run(data, Strategy("s", moneyness=0.05, short_moneyness=0.15),
-                        dividend_yield=0.0)
+    spread = engine.run(
+        data, Strategy("s", moneyness=0.05, short_moneyness=0.15), dividend_yield=0.0
+    )
     assert 0 < spread.total_premium < naked.total_premium  # the sold leg pays for part of it
 
 
@@ -172,8 +176,9 @@ def test_put_spread_protection_stops_at_the_short_strike():
     crash = np.concatenate([np.full(3, 100.0), np.full(19, 50.0)])  # straight through both strikes
     data = frame(crash)
     naked = engine.run(data, Strategy("p", moneyness=0.05, roll_days=21), dividend_yield=0.0)
-    spread = engine.run(data, Strategy("s", moneyness=0.05, short_moneyness=0.15, roll_days=21),
-                        dividend_yield=0.0)
+    spread = engine.run(
+        data, Strategy("s", moneyness=0.05, short_moneyness=0.15, roll_days=21), dividend_yield=0.0
+    )
     assert spread.equity.iloc[-1] < naked.equity.iloc[-1]  # capped protection is worse in a rout
     assert spread.total_payoff > 0  # but it still paid the 10-point width
 
@@ -200,8 +205,9 @@ def test_vol_target_cuts_volatility():
 
 def test_vol_target_never_exceeds_its_exposure_cap():
     data = frame(100 + np.zeros(300))  # zero vol, so the raw signal wants infinite leverage
-    managed = engine.run_vol_target(data, target=0.12, max_exposure=1.0, dividend_yield=0.0,
-                                    capital=1_000.0)
+    managed = engine.run_vol_target(
+        data, target=0.12, max_exposure=1.0, dividend_yield=0.0, capital=1_000.0
+    )
     assert np.isfinite(managed.equity).all()
     assert managed.equity.iloc[-1] < 1_000.0 * 1.10  # capped, so no runaway compounding
 
@@ -210,8 +216,9 @@ def test_vol_scaling_an_unhedged_book_matches_the_standalone_vol_target():
     rng = np.random.default_rng(5)
     data = frame(100 * np.exp(np.cumsum(rng.normal(0.0002, 0.012, 800))))
     standalone = engine.run_vol_target(data, target=0.12, dividend_yield=0.0)
-    stacked = engine.vol_scale(engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0),
-                               data, target=0.12)
+    stacked = engine.vol_scale(
+        engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0), data, target=0.12
+    )
     assert stacked.equity.iloc[-1] == pytest.approx(standalone.equity.iloc[-1], rel=1e-6)
 
 

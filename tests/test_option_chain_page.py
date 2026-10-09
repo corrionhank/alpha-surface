@@ -5,15 +5,15 @@ from __future__ import annotations
 
 from streamlit.testing.v1 import AppTest
 
-from config import REPO_ROOT
+from alphasurface.config import REPO_ROOT
 
-PAGE = str(REPO_ROOT / "src" / "present" / "option_chain.py")
-
+PAGE = str(REPO_ROOT / "src" / "alphasurface" / "present" / "option_chain.py")
 
 
 def _title(at, text: str) -> bool:
     """Panel titles render through theme.panel_head as markdown, not st.subheader."""
     return any(f'panel-title">{text}<' in m.value for m in at.markdown)
+
 
 def test_chain_page_renders_and_follows_the_selected_cell():
     at = AppTest.from_file(PAGE, default_timeout=60)

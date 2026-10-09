@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import pandas as pd
 
-from config import load_config
-from storage import reader, schema
+from alphasurface.config import load_config
+from alphasurface.storage import reader, schema
 
 SPOT, VOL, RATE = "SPY", "^VIX", "^IRX"
 VOL_3M = "^VIX3M"  # 3-month implied vol. Only exists from 2006-07, so term-structure signals
 # are simply off before then rather than guessed at.
 
 SEED = (
-    "python -m collector.yfinance_collector --interval 1d --period 25y "
+    "python -m alphasurface.collector.yfinance_collector --interval 1d --period 25y "
     "--symbols 'SPY,^VIX,^IRX'"
 )
 

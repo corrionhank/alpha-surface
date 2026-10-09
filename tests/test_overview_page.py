@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from collector import reference as ref
-from config import REPO_ROOT, load_config
-from storage import reader, schema
+from alphasurface.collector import reference as ref
+from alphasurface.config import REPO_ROOT, load_config
+from alphasurface.storage import reader, schema
 
-PAGE = REPO_ROOT / "src" / "present" / "overview.py"
+PAGE = REPO_ROOT / "src" / "alphasurface" / "present" / "overview.py"
 
 
 def _has_core() -> bool:
@@ -24,5 +24,5 @@ def test_overview_renders_offline(monkeypatch):
     at.run()
     assert not at.exception
     text = " ".join(m.value for m in at.markdown)
-    for needle in ("Market overview", "kpi-grid", "Fear and greed", "Implied vol"):
+    for needle in ("Dashboard", "kpi-grid", "Fear and greed", "Implied vol"):
         assert needle in text

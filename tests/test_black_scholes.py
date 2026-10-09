@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from derive import black_scholes as bs
+from alphasurface.derive import black_scholes as bs
 
 # (name, S, K, T, r, sigma, q, expected_call, expected_put)
 SCENARIOS = [

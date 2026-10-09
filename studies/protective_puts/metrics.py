@@ -49,10 +49,19 @@ def table(results, rate: pd.Series) -> pd.DataFrame:
 
 
 FORMATS = {
-    "CAGR": "{:.2%}", "Vol": "{:.2%}", "Sharpe": "{:.2f}", "Sortino": "{:.2f}",
-    "MaxDD": "{:.1%}", "Calmar": "{:.2f}", "Worst day": "{:.1%}",
-    "Final": "{:,.0f}", "Premium": "{:,.0f}", "Payoff": "{:,.0f}", "Recovery": "{:.0%}",
-    "Duty": "{:.0%}", "Hedged": "{:.0%}",
+    "CAGR": "{:.2%}",
+    "Vol": "{:.2%}",
+    "Sharpe": "{:.2f}",
+    "Sortino": "{:.2f}",
+    "MaxDD": "{:.1%}",
+    "Calmar": "{:.2f}",
+    "Worst day": "{:.1%}",
+    "Final": "{:,.0f}",
+    "Premium": "{:,.0f}",
+    "Payoff": "{:,.0f}",
+    "Recovery": "{:.0%}",
+    "Duty": "{:.0%}",
+    "Hedged": "{:.0%}",
 }
 
 

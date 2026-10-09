@@ -1,49 +1,15 @@
-# Copy this file to config/config.toml and fill in your values.
-# config/config.toml is gitignored — never commit secrets.
-
-[tastytrade]
-# OAuth, as the installed tastytrade SDK (12.x) expects. In the tastytrade web platform's API access
-# settings, create a personal OAuth application with the READ scope only (no trade scope, so
-# these credentials cannot place orders), copy its client secret, then create a grant for it
-# to get a refresh token.
-# Credentials now live in .env at the repo root (see .env.example).
-# provider_secret = ""
-# refresh_token = ""
-# Set to true to use the tastytrade sandbox (cert environment)
-is_test = false
+# Optional settings. Copy to config/config.toml (gitignored) to change a default.
+# Secrets never go here: tastytrade, Finnhub and FRED credentials live in .env (see .env.example).
 
 [storage]
-# Absolute path to the data directory. Leave commented to use the repo's data/ folder;
-# set it on the Linux host, e.g. "/home/<user>/data/market".
-# data_dir = "/home/user/data/market"
-# DuckDB database file (relative to data_dir)
+# Data directory. Defaults to the repo's data/ folder; ALPHASURFACE_DATA_DIR overrides both.
+# data_dir = "~/data/market"
+# DuckDB database file, relative to data_dir.
 db_file = "market.duckdb"
 
-[collection]
-# Market session window (ET); collector only runs during this window
-market_open  = "09:30"
-market_close = "16:00"
-timezone     = "America/New_York"
-# How many strikes above and below ATM to capture per expiry
-strike_band_pct = 0.15   # ± 15% from spot
-
-[fred]
-# Get a free API key at https://fred.stlouisfed.org/docs/api/api_key.html
-# The overview's economic calendar falls back to FRED release dates with this key, but only if
-# the installed yfinance has no economic calendar of its own.
-api_key = ""
-
-[news]
-# Finnhub: https://finnhub.io, free tier. When set, the overview's news feed adds Finnhub
-# general market news to the Yahoo Finance headlines. Leave blank to send nothing to Finnhub.
-finnhub_api_key = ""
-# Marketaux: https://www.marketaux.com — 100 req/day free
-marketaux_api_key = ""
-
 [notify]
-# Scanner alerts (python -m collector.scan). Off unless enabled. When on, new hits raise a local
-# macOS notification; set ntfy_url (e.g. "https://ntfy.sh/your-private-topic") to also push to a
-# phone. Nothing is sent anywhere unless configured here.
+# Screener alerts from the scheduled scan. Off unless enabled. When on, new hits raise a macOS
+# notification; set ntfy_url (a private https://ntfy.sh/<topic>) to also push to a phone.
 enabled = false
 macos = true
 ntfy_url = ""

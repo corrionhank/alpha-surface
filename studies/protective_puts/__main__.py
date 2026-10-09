@@ -31,10 +31,15 @@ def crisis_drawdowns(results, windows) -> dict:
 def main() -> None:
     p = argparse.ArgumentParser(description="Protective put study on 21 years of S&P 500 data.")
     p.add_argument("--years", type=float, default=21.0, help="lookback, default 21")
-    p.add_argument("--skew", type=float, default=0.5,
-                   help="vol points per 1%% OTM added to VIX, default 0.5")
-    p.add_argument("--term-premium", type=float, default=0.025,
-                   help="vol points added at a 1-year tenor, since VIX is 30-day. Default 0.025")
+    p.add_argument(
+        "--skew", type=float, default=0.5, help="vol points per 1%% OTM added to VIX, default 0.5"
+    )
+    p.add_argument(
+        "--term-premium",
+        type=float,
+        default=0.025,
+        help="vol points added at a 1-year tenor, since VIX is 30-day. Default 0.025",
+    )
     p.add_argument("--dividend-yield", type=float, default=0.018)
     p.add_argument("--capital", type=float, default=10_000.0)
     p.add_argument("--outdir", default="studies/protective_puts/figures")
@@ -53,15 +58,22 @@ def main() -> None:
     span = f"{df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}"
     years = (df.index[-1] - df.index[0]).days / 365.25
     print(f"\nSPY daily, {span} ({years:.1f} years, {len(df):,} sessions)")
-    print(f"Puts priced at VIX + {args.skew} vol points per 1% OTM, "
-          f"+{args.term_premium:.1%} vol at 1y tenor, dividends {args.dividend_yield:.1%}, "
-          f"marked to model daily.\n")
+    print(
+        f"Puts priced at VIX + {args.skew} vol points per 1% OTM, "
+        f"+{args.term_premium:.1%} vol at 1y tenor, dividends {args.dividend_yield:.1%}, "
+        f"marked to model daily.\n"
+    )
 
     def run_all(strategies, skew=None):
         return [
-            engine.run(df, s, skew_slope=args.skew if skew is None else skew,
-                       dividend_yield=args.dividend_yield, capital=args.capital,
-                       term_premium=args.term_premium)
+            engine.run(
+                df,
+                s,
+                skew_slope=args.skew if skew is None else skew,
+                dividend_yield=args.dividend_yield,
+                capital=args.capital,
+                term_premium=args.term_premium,
+            )
             for s in strategies
         ]
 
@@ -82,8 +94,14 @@ def main() -> None:
     for strategy in scenarios.LADDER[1:]:
         by_slope = {}
         for slope in scenarios.SKEW_SWEEP:
-            res = engine.run(df, strategy, skew_slope=slope, dividend_yield=args.dividend_yield,
-                             capital=args.capital, term_premium=args.term_premium)
+            res = engine.run(
+                df,
+                strategy,
+                skew_slope=slope,
+                dividend_yield=args.dividend_yield,
+                capital=args.capital,
+                term_premium=args.term_premium,
+            )
             by_slope[slope] = metrics.summarize(res.equity, df["rate"])["CAGR"]
         sweep[strategy.name] = by_slope
     print((pd.DataFrame(sweep) * 100).round(2).rename_axis("skew slope").to_string(), "\n")

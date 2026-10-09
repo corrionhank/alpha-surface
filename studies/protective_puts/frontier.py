@@ -42,6 +42,7 @@ TD = 252
 
 # --- exposure generators. Each returns a point-in-time weight in [0, cap], already shifted. ---
 
+
 def _vol(ret: pd.Series, lookback: int, estimator: str, vix: pd.Series) -> pd.Series:
     if estimator == "realized":
         return ret.rolling(lookback).std() * np.sqrt(TD)
@@ -100,12 +101,22 @@ def build_strategies(df) -> list[tuple[str, str, np.ndarray]]:
         for look in (21, 42, 63):
             for cap in (1.0, 1.5):
                 for est in ("realized", "ewma"):
-                    S.append((f"VT {target:.0%}/{look}d/{cap:g}x/{est[:4]}", "Vol target",
-                              vol_target(df, target, look, cap, est)))
+                    S.append(
+                        (
+                            f"VT {target:.0%}/{look}d/{cap:g}x/{est[:4]}",
+                            "Vol target",
+                            vol_target(df, target, look, cap, est),
+                        )
+                    )
     for target in (0.12, 0.15, 0.18):
         for cap in (1.0, 1.5):
-            S.append((f"VT {target:.0%}/VIX/{cap:g}x", "Vol target",
-                      vol_target(df, target, 21, cap, "vix")))
+            S.append(
+                (
+                    f"VT {target:.0%}/VIX/{cap:g}x",
+                    "Vol target",
+                    vol_target(df, target, 21, cap, "vix"),
+                )
+            )
 
     for ma in (50, 100, 150, 200):
         for off in (0.0, 0.5):
@@ -117,19 +128,38 @@ def build_strategies(df) -> list[tuple[str, str, np.ndarray]]:
 
     for cap_dd in (0.10, 0.15, 0.20):
         for floor in (0.0, 0.5):
-            S.append((f"DDctrl {cap_dd:.0%}/floor{floor:g}", "Drawdown ctrl",
-                      drawdown_control(df, cap_dd, floor)))
+            S.append(
+                (
+                    f"DDctrl {cap_dd:.0%}/floor{floor:g}",
+                    "Drawdown ctrl",
+                    drawdown_control(df, cap_dd, floor),
+                )
+            )
 
-    for low, high, calm, stress in ((15, 30, 1.0, 0.3), (15, 25, 1.0, 0.5),
-                                     (12, 35, 1.2, 0.2), (18, 40, 1.0, 0.4)):
-        S.append((f"VIXreg {low}-{high}", "VIX regime",
-                  vix_regime(df, low / 100, high / 100, calm, stress)))
+    for low, high, calm, stress in (
+        (15, 30, 1.0, 0.3),
+        (15, 25, 1.0, 0.5),
+        (12, 35, 1.2, 0.2),
+        (18, 40, 1.0, 0.4),
+    ):
+        S.append(
+            (
+                f"VIXreg {low}-{high}",
+                "VIX regime",
+                vix_regime(df, low / 100, high / 100, calm, stress),
+            )
+        )
 
     for look in (21, 63):
         for sigma in (1.5, 2.0):
             for off in (0.0, 0.5):
-                S.append((f"Derisk {look}d/{sigma}s/off{off:g}", "Downside",
-                          downside_derisk(df, look, sigma, off, hold=63)))
+                S.append(
+                    (
+                        f"Derisk {look}d/{sigma}s/off{off:g}",
+                        "Downside",
+                        downside_derisk(df, look, sigma, off, hold=63),
+                    )
+                )
     return S
 
 
@@ -148,8 +178,10 @@ def main() -> None:
     rate = df["rate"]
 
     strategies = build_strategies(df)
-    print(f"\nDEFENSIVE-EXPOSURE FRONTIER. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
-          f"{len(df):,} sessions, {len(strategies)} strategies. Exploratory (see PROTOCOL.md).")
+    print(
+        f"\nDEFENSIVE-EXPOSURE FRONTIER. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
+        f"{len(df):,} sessions, {len(strategies)} strategies. Exploratory (see PROTOCOL.md)."
+    )
 
     bh = engine.run(df, scenarios.BUY_AND_HOLD)
     rows = {"Buy and hold": {**metrics.summarize(bh.equity, rate), "family": "Benchmark"}}
@@ -167,15 +199,24 @@ def main() -> None:
     tbl["frontier"] = tbl.index.isin(front)
 
     bh_row = tbl.loc["Buy and hold"]
-    print(f"\nBuy and hold: CAGR {bh_row.CAGR:.2%}, Sharpe {bh_row.Sharpe:.2f}, "
-          f"MaxDD {bh_row.MaxDD:.1%}, Calmar {bh_row.Calmar:.2f}")
+    print(
+        f"\nBuy and hold: CAGR {bh_row.CAGR:.2%}, Sharpe {bh_row.Sharpe:.2f}, "
+        f"MaxDD {bh_row.MaxDD:.1%}, Calmar {bh_row.Calmar:.2f}"
+    )
 
     print(f"\nEFFICIENT FRONTIER ({len(front)} of {len(tbl)}), non-dominated on CAGR vs drawdown:")
     show = tbl.loc[front].sort_values("MaxDD")
-    print(show[["family", "CAGR", "Vol", "Sharpe", "MaxDD", "Calmar"]].to_string(formatters={
-        "CAGR": "{:.2%}".format, "Vol": "{:.1%}".format, "Sharpe": "{:.2f}".format,
-        "MaxDD": "{:.1%}".format, "Calmar": "{:.2f}".format,
-    }))
+    print(
+        show[["family", "CAGR", "Vol", "Sharpe", "MaxDD", "Calmar"]].to_string(
+            formatters={
+                "CAGR": "{:.2%}".format,
+                "Vol": "{:.1%}".format,
+                "Sharpe": "{:.2f}".format,
+                "MaxDD": "{:.1%}".format,
+                "Calmar": "{:.2f}".format,
+            }
+        )
+    )
 
     best_sharpe = tbl.drop("Buy and hold").sort_values("Sharpe", ascending=False).head(5)
     best_calmar = tbl.drop("Buy and hold").sort_values("Calmar", ascending=False).head(5)
@@ -197,7 +238,8 @@ def non_dominated(tbl: pd.DataFrame) -> list:
     keep = []
     for name, row in tbl.iterrows():
         dominated = (
-            (tbl["CAGR"] >= row["CAGR"]) & (tbl["MaxDD"] >= row["MaxDD"])
+            (tbl["CAGR"] >= row["CAGR"])
+            & (tbl["MaxDD"] >= row["MaxDD"])
             & ((tbl["CAGR"] > row["CAGR"]) | (tbl["MaxDD"] > row["MaxDD"]))
         ).any()
         if not dominated:

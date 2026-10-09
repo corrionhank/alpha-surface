@@ -7,11 +7,16 @@ data
 .env.*
 !.env.example
 config/config.toml
+config/scans.toml
 **/__pycache__
 **/*.pyc
 .pytest_cache
 .ruff_cache
 .mypy_cache
-notebooks
+.coverage
+coverage.xml
+htmlcov
+studies
+tests
 .claude
 *.egg-info

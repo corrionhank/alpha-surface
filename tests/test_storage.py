@@ -5,9 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from config import Config
-from present.summary import summarize
-from storage import reader, schema, writer
+from alphasurface.config import Config
+from alphasurface.storage import reader, schema, writer
 
 
 def _bars(symbol: str, closes: list[float], start: str = "2026-07-10 13:30") -> pd.DataFrame:
@@ -57,34 +56,20 @@ def test_upsert_dedup_keeps_latest(config):
     assert df["close"].tolist() == [500, 555, 502]  # freshest row won
 
 
-def test_multi_symbol_and_summary(config):
+def test_multi_symbol(config):
     writer.write_ohlcv(_bars("SPY", [500, 505]), config)
     writer.write_ohlcv(_bars("QQQ", [400, 396]), config)
     with schema.connect(config, persistent=False) as conn:
         assert reader.available_symbols(conn) == ["QQQ", "SPY"]
         spy = reader.get_ohlcv(conn, "SPY", "1h")
-    s = summarize(spy)
-    assert s["symbol"] == "SPY"
-    assert s["last"] == 505
-    assert s["change_pct"] == pytest.approx(1.0)
+    assert spy["close"].tolist() == [500, 505]
 
 
 def test_one_file_per_series(config):
     writer.write_ohlcv(_bars("SPY", [500, 501]), config)
     writer.write_ohlcv(_bars("QQQ", [400, 401]), config)
-    files = sorted(p.relative_to(config.parquet_dir / "ohlcv").as_posix()
-                   for p in (config.parquet_dir / "ohlcv").rglob("*.parquet"))
+    files = sorted(
+        p.relative_to(config.parquet_dir / "ohlcv").as_posix()
+        for p in (config.parquet_dir / "ohlcv").rglob("*.parquet")
+    )
     assert files == ["1h/QQQ.parquet", "1h/SPY.parquet"]
-
-
-def test_compact_moves_day_partitions_aside(config):
-    old = config.parquet_dir / "ohlcv" / "year=2026" / "month=7" / "day=10" / "data.parquet"
-    old.parent.mkdir(parents=True)
-    _bars("SPY", [500, 501, 502]).to_parquet(old, index=False)
-    writer.write_ohlcv(_bars("SPY", [500, 555], start="2026-07-10 14:30"), config)  # overlaps
-    out = writer.compact_ohlcv(config)
-    assert out["moved"] == 1 and not old.exists()
-    with schema.connect(config, persistent=False) as conn:
-        df = reader.get_ohlcv(conn, "SPY", "1h")
-    assert df["close"].tolist() == [500, 500, 555]  # the series file's newer rows won
-    assert writer.compact_ohlcv(config)["moved"] == 0

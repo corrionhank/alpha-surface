@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from config import REPO_ROOT
+from alphasurface.config import REPO_ROOT
 
 CACHE = REPO_ROOT / "data" / "signals"
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={id}&cosd=1960-01-01"

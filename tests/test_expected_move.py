@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from derive import expected_move as em
+from alphasurface.derive import expected_move as em
 
 
 def test_cone_starts_at_spot_and_widens():

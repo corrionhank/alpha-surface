@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from scipy.stats import kurtosis
 
-from derive import simulate as sim
+from alphasurface.derive import simulate as sim
 
 S, MU, SIG, DAYS, N = 100.0, 0.05, 0.20, 252, 40_000
 T = DAYS / sim.TRADING_DAYS
@@ -80,7 +80,9 @@ def test_var_cvar_on_a_known_sample():
 def test_growth_rate_peaks_at_kelly():
     p, b = 0.55, 1.0
     grid = np.linspace(0, 0.5, 5001)
-    assert grid[np.nanargmax(sim.growth_rate(p, b, grid))] == pytest.approx(p - (1 - p) / b, abs=1e-3)
+    assert grid[np.nanargmax(sim.growth_rate(p, b, grid))] == pytest.approx(
+        p - (1 - p) / b, abs=1e-3
+    )
     assert sim.growth_rate(p, b, 2.2 * (p - (1 - p) / b)) < 0  # over-betting a real edge loses
 
 

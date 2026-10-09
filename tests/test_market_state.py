@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from derive import market_state as ms
+from alphasurface.derive import market_state as ms
 
 
 def test_percentile_rank():
@@ -18,14 +18,11 @@ def test_percentile_rank():
     assert np.isnan(ms.percentile_rank(s, float("nan")))
 
 
-def test_rolling_vol_matches_summary_estimator():
-    # Same estimator as present.summary.realized_vol, as a rolling series.
-    from present.summary import realized_vol
-
+def test_rolling_vol_is_annualized_log_return_stdev():
     rng = np.random.default_rng(3)
     close = pd.Series(100 * np.exp(np.cumsum(rng.normal(0, 0.01, 300))))
     rolled = ms.rolling_vol(close, window=60)
-    point = realized_vol(close.tail(61), "1d")
+    point = np.log(close.tail(61)).diff().std(ddof=1) * np.sqrt(252) * 100
     assert rolled.iloc[-1] == pytest.approx(point)
 
 
