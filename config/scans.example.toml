@@ -1,8 +1,8 @@
-# Saved scans for `python -m collector.scan --saved <name>`.
+# Saved scans for `python -m alphasurface.collector.scan --saved <name>`.
 # Copy to config/scans.toml and edit; the CLI reads scans.toml when it exists, else this file.
 # Filter keys: dte_min, dte_max, zero_dte, dist_max, delta_min, delta_max, min_oi, min_volume,
 # max_spread, max_spread_pct, min_premium, side. Params are each preset's thresholds
-# (python -m collector.scan --list, and docs/scanner.md).
+# (python -m alphasurface.collector.scan --list, and docs/scanner.md).
 
 [index_rich]
 preset = "rich"

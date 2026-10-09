@@ -40,7 +40,7 @@ def bear_ahead(spot: np.ndarray, horizon: int, depth: float = BEAR) -> np.ndarra
     n = len(spot)
     out = np.zeros(n, dtype=bool)
     for i in range(n):
-        window = spot[i:i + horizon + 1]
+        window = spot[i : i + horizon + 1]
         out[i] = (window.min() / spot[i] - 1) < depth
     return out
 
@@ -52,16 +52,18 @@ def forecaster(truth: np.ndarray, precision: float, deploy: float, rng) -> np.nd
     false alarms drawn from the calm cycles. Precision equal to the base rate is no skill at all.
     """
     n = len(truth)
-    calls = int(round(deploy * n))
+    calls = round(deploy * n)
     true_idx, false_idx = np.flatnonzero(truth), np.flatnonzero(~truth)
 
-    hits = min(int(round(precision * calls)), len(true_idx))
+    hits = min(round(precision * calls), len(true_idx))
     misses = min(calls - hits, len(false_idx))
 
-    picked = np.concatenate([
-        rng.choice(true_idx, hits, replace=False),
-        rng.choice(false_idx, misses, replace=False),
-    ]).astype(int)
+    picked = np.concatenate(
+        [
+            rng.choice(true_idx, hits, replace=False),
+            rng.choice(false_idx, misses, replace=False),
+        ]
+    ).astype(int)
     out = np.zeros(n, dtype=bool)
     out[picked] = True
     return out
@@ -95,17 +97,27 @@ def main() -> None:
         engine.run(df, HEDGE, hedge_on=np.repeat(truth, roll)[:n]).equity, rate
     )
 
-    print(f"\nSPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}. "
-          f"Hedge: {HEDGE.name}, deployed on {args.deploy:.0%} of the {len(starts)} annual cycles.")
-    print(f"A bear ({BEAR:.0%} drawdown within a year) was actually coming on "
-          f"{base_rate:.0%} of them. That is the hit rate of a dart board.\n")
+    print(
+        f"\nSPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}. "
+        f"Hedge: {HEDGE.name}, deployed on {args.deploy:.0%} of the {len(starts)} annual cycles."
+    )
+    print(
+        f"A bear ({BEAR:.0%} drawdown within a year) was actually coming on "
+        f"{base_rate:.0%} of them. That is the hit rate of a dart board.\n"
+    )
 
-    print(f"{'Buy and hold':<26} CAGR {bh['CAGR']:>6.2%}  Sharpe {bh['Sharpe']:.2f}  "
-          f"MaxDD {bh['MaxDD']:>6.1%}")
-    print(f"{'Always hedged (1y put)':<26} CAGR {always['CAGR']:>6.2%}  "
-          f"Sharpe {always['Sharpe']:.2f}  MaxDD {always['MaxDD']:>6.1%}")
-    print(f"{'Perfect foresight':<26} CAGR {oracle['CAGR']:>6.2%}  Sharpe {oracle['Sharpe']:.2f}  "
-          f"MaxDD {oracle['MaxDD']:>6.1%}   <- the ceiling, hedging only the real bears\n")
+    print(
+        f"{'Buy and hold':<26} CAGR {bh['CAGR']:>6.2%}  Sharpe {bh['Sharpe']:.2f}  "
+        f"MaxDD {bh['MaxDD']:>6.1%}"
+    )
+    print(
+        f"{'Always hedged (1y put)':<26} CAGR {always['CAGR']:>6.2%}  "
+        f"Sharpe {always['Sharpe']:.2f}  MaxDD {always['MaxDD']:>6.1%}"
+    )
+    print(
+        f"{'Perfect foresight':<26} CAGR {oracle['CAGR']:>6.2%}  Sharpe {oracle['Sharpe']:.2f}  "
+        f"MaxDD {oracle['MaxDD']:>6.1%}   <- the ceiling, hedging only the real bears\n"
+    )
 
     rng = np.random.default_rng(20260714)
     grid = np.round(np.arange(0.2, 1.01, 0.1), 2)
@@ -114,7 +126,8 @@ def main() -> None:
         runs = [
             metrics.summarize(
                 engine.run(
-                    df, HEDGE,
+                    df,
+                    HEDGE,
                     hedge_on=np.repeat(forecaster(truth, precision, args.deploy, rng), roll)[:n],
                 ).equity,
                 rate,
@@ -130,21 +143,33 @@ def main() -> None:
     curve = pd.DataFrame(rows).T.rename_axis("precision")
 
     print("IF YOUR HUNCH IS RIGHT THIS OFTEN, HEDGING A THIRD OF THE TIME GIVES YOU:")
-    print(curve.to_string(formatters={
-        "CAGR": "{:.2%}".format, "Sharpe": "{:.3f}".format,
-        "MaxDD": "{:.1%}".format, "Beat B&H": "{:.0%}".format,
-    }))
+    print(
+        curve.to_string(
+            formatters={
+                "CAGR": "{:.2%}".format,
+                "Sharpe": "{:.3f}".format,
+                "MaxDD": "{:.1%}".format,
+                "Beat B&H": "{:.0%}".format,
+            }
+        )
+    )
 
     clears = curve[curve["Sharpe"] > bh["Sharpe"]]
     if len(clears):
         need = clears.index[0]
-        print(f"\nBreakeven: you need to be right about {need:.0%} of the time for a one-year put, "
-              f"deployed {args.deploy:.0%} of the time, to beat buy-and-hold on Sharpe.")
-        print(f"A dart board scores {base_rate:.0%}. You must beat that by "
-              f"{need - base_rate:+.0%} to add anything at all.")
+        print(
+            f"\nBreakeven: you need to be right about {need:.0%} of the time for a one-year put, "
+            f"deployed {args.deploy:.0%} of the time, to beat buy-and-hold on Sharpe."
+        )
+        print(
+            f"A dart board scores {base_rate:.0%}. You must beat that by "
+            f"{need - base_rate:+.0%} to add anything at all."
+        )
     else:
-        print(f"\nNo precision on the grid beats buy-and-hold on Sharpe. Even perfect foresight "
-              f"({oracle['Sharpe']:.2f}) fails to clear {bh['Sharpe']:.2f}.")
+        print(
+            f"\nNo precision on the grid beats buy-and-hold on Sharpe. Even perfect foresight "
+            f"({oracle['Sharpe']:.2f}) fails to clear {bh['Sharpe']:.2f}."
+        )
 
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)

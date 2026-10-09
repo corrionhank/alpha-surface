@@ -1,9 +1,9 @@
-# Run on the host (Linux box or Mac):  docker compose up -d
-# Collect on demand:                   docker compose run --rm app python -m collector.tastytrade_collector
+# Run on the host:      docker compose up -d
+# Collect on demand:    docker compose run --rm app python -m alphasurface.collector.tastytrade_collector
 # Credentials come from .env next to this file (TASTYTRADE_CLIENT_SECRET, TASTYTRADE_REFRESH_TOKEN).
 services:
   app:
-    image: ghcr.io/corrionhank/derivative-implied-pricing:latest
+    image: ghcr.io/corrionhank/alpha-surface:latest
     build: .
     ports:
       - "8501:8501"

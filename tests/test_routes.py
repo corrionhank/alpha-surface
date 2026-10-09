@@ -3,10 +3,10 @@ nav, and a bad default would leave "/" pointing nowhere once signed in."""
 
 from __future__ import annotations
 
-from config import REPO_ROOT
-from present import routes
+from alphasurface.config import REPO_ROOT
+from alphasurface.present import routes
 
-PAGES = REPO_ROOT / "src" / "present"
+PAGES = REPO_ROOT / "src" / "alphasurface" / "present"
 
 
 def test_every_route_has_a_page_file():

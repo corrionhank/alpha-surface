@@ -13,10 +13,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from collector.chains import CHAIN_COLUMNS, SyntheticChains, get_provider
-from derive import vol_surface as vs
-from derive.black_scholes import price
-from derive.implied_vol import bounds, implied_vol
+from alphasurface.collector.chains import CHAIN_COLUMNS, SyntheticChains, get_provider
+from alphasurface.derive import vol_surface as vs
+from alphasurface.derive.black_scholes import price
+from alphasurface.derive.implied_vol import bounds, implied_vol
 
 
 @pytest.mark.parametrize("sigma", [0.08, 0.20, 0.65, 1.50])
@@ -46,7 +46,9 @@ def test_a_price_at_intrinsic_has_no_volatility():
 def test_deep_wing_quotes_still_solve():
     # Vega collapses here, which is exactly where Newton would fall over and Brent does not.
     target = price(100.0, 200.0, 0.05, 0.04, 0.60, 0.0, "call")
-    assert implied_vol(target, 100.0, 200.0, 0.05, 0.04, 0.0, "call") == pytest.approx(0.60, abs=1e-5)
+    assert implied_vol(target, 100.0, 200.0, 0.05, 0.04, 0.0, "call") == pytest.approx(
+        0.60, abs=1e-5
+    )
 
 
 def test_synthetic_chain_has_the_provider_contract():
@@ -71,7 +73,9 @@ def test_the_surface_round_trips_the_volatility_it_was_priced_from():
     surface = vs.build(chain, rate=0.04, div=0.012, moneyness=(0.75, 1.25), max_spread=1.0)
 
     assert not surface.empty
-    expected = np.array([provider.iv(k, t) for k, t in zip(surface["strike"], surface["tenor"])])
+    expected = np.array(
+        [provider.iv(k, t) for k, t in zip(surface["strike"], surface["tenor"], strict=False)]
+    )
     error = surface["iv"].to_numpy() - expected
 
     assert abs(error.mean()) < 1e-5, "systematic bias: the forward or the tenor is wrong"
@@ -91,9 +95,13 @@ def test_build_keeps_only_the_out_of_the_money_side():
 
 
 def test_mid_falls_back_to_last_when_the_market_is_closed():
-    chain = pd.DataFrame({
-        "bid": [0.0, 1.0], "ask": [0.0, 1.4], "last": [2.5, 1.1],
-    })
+    chain = pd.DataFrame(
+        {
+            "bid": [0.0, 1.0],
+            "ask": [0.0, 1.4],
+            "last": [2.5, 1.1],
+        }
+    )
     mid, source = vs.mid_price(chain)
     assert mid.tolist() == [2.5, 1.2]  # closed -> last; open -> the mid
     assert source.tolist() == [vs.QUOTE_LAST, vs.QUOTE_MID]

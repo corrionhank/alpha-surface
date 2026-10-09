@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import tomllib
 
-from config import REPO_ROOT
-from derive.market_state import REGIMES
-from present import theme
+from alphasurface.config import REPO_ROOT
+from alphasurface.derive.market_state import REGIMES
+from alphasurface.present import theme
 
 CONFIG = tomllib.loads((REPO_ROOT / ".streamlit" / "config.toml").read_text())["theme"]
 

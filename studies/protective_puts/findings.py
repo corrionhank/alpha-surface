@@ -50,20 +50,38 @@ def build(df, out: Path) -> Path:
 
     # === 1. Own less, don't insure ===
     ax = axes[0, 0]
-    pts = [("Buy & hold", bh, INK), ("Always-hedged put", stats["Always-hedged put"], RED),
-           ("De-risk on 2σ drop", stats["Down-move de-risk"], GREEN)]
+    pts = [
+        ("Buy & hold", bh, INK),
+        ("Always-hedged put", stats["Always-hedged put"], RED),
+        ("De-risk on 2σ drop", stats["Down-move de-risk"], GREEN),
+    ]
     for name, s, c in pts:
-        ax.scatter(s["MaxDD"] * 100, s["CAGR"] * 100, s=220, color=c, edgecolor="white",
-                   linewidth=1.4, zorder=5)
-        ax.annotate(name, (s["MaxDD"] * 100, s["CAGR"] * 100),
-                    xytext=(s["MaxDD"] * 100 + 1.2, s["CAGR"] * 100 + 0.15), fontsize=10,
-                    color=c, weight="700")
+        ax.scatter(
+            s["MaxDD"] * 100,
+            s["CAGR"] * 100,
+            s=220,
+            color=c,
+            edgecolor="white",
+            linewidth=1.4,
+            zorder=5,
+        )
+        ax.annotate(
+            name,
+            (s["MaxDD"] * 100, s["CAGR"] * 100),
+            xytext=(s["MaxDD"] * 100 + 1.2, s["CAGR"] * 100 + 0.15),
+            fontsize=10,
+            color=c,
+            weight="700",
+        )
     clean(ax)
     ax.set_title("1.  Own less, don't insure", loc="left", fontsize=13, color=INK, weight="800")
     ax.set_xlabel("Max drawdown (%)   → safer", fontsize=9, color=INK)
     ax.set_ylabel("CAGR (%)", fontsize=9, color=INK)
-    caption(ax, "Managing exposure cut the drawdown to -23% while keeping 10.3% CAGR.\nBuying "
-                "puts every month cut it only to -51% and halved the return.")
+    caption(
+        ax,
+        "Managing exposure cut the drawdown to -23% while keeping 10.3% CAGR.\nBuying "
+        "puts every month cut it only to -51% and halved the return.",
+    )
 
     # === 2. The one signal with real skill ===
     ax = axes[0, 1]
@@ -78,7 +96,7 @@ def build(df, out: Path) -> Path:
         ("VIX complacent", precision((vp < 0.20).shift(1), truth_y), ORANGE),
     ]
     y = np.arange(len(rows))[::-1]
-    for yi, (nm, d, c) in zip(y, rows):
+    for yi, (_nm, d, c) in zip(y, rows, strict=False):
         lift = d["lift"] * 100
         ax.barh(yi, lift, color=c, height=0.6)
         # The CI is on precision; its half-widths are the same in lift-space (a shift by base).
@@ -89,11 +107,15 @@ def build(df, out: Path) -> Path:
     ax.set_yticks(y)
     ax.set_yticklabels([r[0] for r in rows], fontsize=10)
     clean(ax)
-    ax.set_title("2.  One signal actually predicts a bear", loc="left", fontsize=13, color=INK,
-                 weight="800")
+    ax.set_title(
+        "2.  One signal actually predicts a bear", loc="left", fontsize=13, color=INK, weight="800"
+    )
     ax.set_xlabel("Lift over base rate (pp); right of the line = predictive", fontsize=9, color=INK)
-    caption(ax, "After a 2σ drop a further 15% fall is 33% likely vs a 7% baseline.\nUp-moves and "
-                "VIX complacency point the wrong way.")
+    caption(
+        ax,
+        "After a 2σ drop a further 15% fall is 33% likely vs a 7% baseline.\nUp-moves and "
+        "VIX complacency point the wrong way.",
+    )
 
     # === 3. The first drawdown is nearly free ===
     ax = axes[1, 0]
@@ -104,19 +126,40 @@ def build(df, out: Path) -> Path:
     fs = pd.DataFrame(fstats, columns=["MaxDD", "CAGR"])
     ax.scatter(fs["MaxDD"] * 100, fs["CAGR"] * 100, s=22, color="#C9CED6", edgecolor="none")
     front = fs.loc[frontier.non_dominated(fs)].sort_values("MaxDD")
-    ax.plot(front["MaxDD"] * 100, front["CAGR"] * 100, color=GREEN, linewidth=2, marker="o",
-            markersize=4, zorder=4)
+    ax.plot(
+        front["MaxDD"] * 100,
+        front["CAGR"] * 100,
+        color=GREEN,
+        linewidth=2,
+        marker="o",
+        markersize=4,
+        zorder=4,
+    )
     ax.scatter(bh["MaxDD"] * 100, bh["CAGR"] * 100, s=200, marker="*", color=INK, zorder=5)
-    ax.annotate("buy & hold", (bh["MaxDD"] * 100, bh["CAGR"] * 100),
-                xytext=(bh["MaxDD"] * 100 + 1.5, bh["CAGR"] * 100), fontsize=9, color=INK,
-                weight="600", va="center")
+    ax.annotate(
+        "buy & hold",
+        (bh["MaxDD"] * 100, bh["CAGR"] * 100),
+        xytext=(bh["MaxDD"] * 100 + 1.5, bh["CAGR"] * 100),
+        fontsize=9,
+        color=INK,
+        weight="600",
+        va="center",
+    )
     clean(ax)
-    ax.set_title("3.  The first 20 points of drawdown are ~free", loc="left", fontsize=13,
-                 color=INK, weight="800")
+    ax.set_title(
+        "3.  The first 20 points of drawdown are ~free",
+        loc="left",
+        fontsize=13,
+        color=INK,
+        weight="800",
+    )
     ax.set_xlabel("Max drawdown (%)   → safer", fontsize=9, color=INK)
     ax.set_ylabel("CAGR (%)", fontsize=9, color=INK)
-    caption(ax, "74 defensive strategies (grey), efficient frontier in green.\nCutting drawdown "
-                "from -55% to -35% costs essentially no return.")
+    caption(
+        ax,
+        "74 defensive strategies (grey), efficient frontier in green.\nCutting drawdown "
+        "from -55% to -35% costs essentially no return.",
+    )
 
     # === 4. How good must the call be? ===
     ax = axes[1, 1]
@@ -129,28 +172,48 @@ def build(df, out: Path) -> Path:
     grid = np.round(np.arange(0.2, 1.01, 0.1), 2)
     curve = []
     for prec in grid:
-        sh = [metrics.summarize(
-            engine.run(df, HEDGE, hedge_on=np.repeat(forecaster(truth, prec, 1 / 3, rng), roll)[:n]
-                       ).equity, rate)["Sharpe"] for _ in range(25)]
+        sh = [
+            metrics.summarize(
+                engine.run(
+                    df, HEDGE, hedge_on=np.repeat(forecaster(truth, prec, 1 / 3, rng), roll)[:n]
+                ).equity,
+                rate,
+            )["Sharpe"]
+            for _ in range(25)
+        ]
         curve.append(np.mean(sh))
     ax.plot(grid * 100, curve, color=BLUE, linewidth=2, marker="o", markersize=4)
     ax.axhline(bh_sh, color=INK, linestyle="--", linewidth=1.3, label=f"buy & hold ({bh_sh:.2f})")
     ax.axvline(base * 100, color=ORANGE, linewidth=1.4, label=f"dart board ({base:.0%})")
     clean(ax)
-    ax.set_title("4.  A skilled call clears a low bar", loc="left", fontsize=13, color=INK,
-                 weight="800")
+    ax.set_title(
+        "4.  A skilled call clears a low bar", loc="left", fontsize=13, color=INK, weight="800"
+    )
     ax.set_xlabel("How often your bear call is right (%)", fontsize=9, color=INK)
     ax.set_ylabel("Sharpe", fontsize=9, color=INK)
     ax.legend(frameon=False, fontsize=8.5, loc="lower right")
-    caption(ax, "Be right ~40% of the time (vs a 29% base rate) and hedging a\nthird of the "
-                "time beats buy & hold. A reachable bar for a real read.")
+    caption(
+        ax,
+        "Be right ~40% of the time (vs a 29% base rate) and hedging a\nthird of the "
+        "time beats buy & hold. A reachable bar for a real read.",
+    )
 
-    fig.suptitle("What actually protects: the findings that hold up",
-                 fontsize=17, color=INK, weight="800", x=0.02, ha="left")
-    fig.text(0.02, 0.005,
-             "SPY 2005-2026, 21 years. Drawdown reductions are the robust result; Sharpe edges are "
-             "within noise and lean on 2008/2020. Exploratory — see PROTOCOL.md.",
-             fontsize=8.5, color=MUTED)
+    fig.suptitle(
+        "What actually protects: the findings that hold up",
+        fontsize=17,
+        color=INK,
+        weight="800",
+        x=0.02,
+        ha="left",
+    )
+    fig.text(
+        0.02,
+        0.005,
+        "SPY 2005-2026, 21 years. Drawdown reductions are the robust result; Sharpe edges are "
+        "within noise and lean on 2008/2020. Exploratory — see PROTOCOL.md.",
+        fontsize=8.5,
+        color=MUTED,
+    )
     fig.tight_layout(rect=(0, 0.03, 1, 0.96), h_pad=4.0)
     path = out / "18-what-works.png"
     fig.savefig(path, dpi=150)

@@ -1,21 +1,23 @@
-# Options scanner
+# Screener
 
 Scans many option chains at once for the setups usually checked by hand. Every hit carries a
 sentence saying why, with the numbers in it. A hit is a place to look, not a trade.
 
-Code: rules in `src/derive/scan.py`, the options-or-underlying comparison in
-`src/derive/vehicles.py`, fetching and alerts in `src/collector/scan.py` and
-`src/collector/alerts.py`, the page in `src/present/scanner.py`.
+Code: rules in `alphasurface.derive.scan`, the options-or-underlying comparison in
+`alphasurface.derive.vehicles`, fetching and alerts in `alphasurface.collector.scan` and
+`alphasurface.collector.alerts`, the page in `alphasurface.present.scanner`.
 
 ## Data flow
 
 ```
-provider -> collector/feed.py -> scan (in memory, on the spot)
-                              -> option_chain / ohlcv in Parquet + DuckDB (for history)
+provider -> collector.feed -> scan (in memory, on the spot)
+                           -> option_chain / ohlcv in Parquet + DuckDB (for history)
 ```
 
 Every chain and daily bar a scan fetches goes through the market-data gateway, so it is analyzed
-right away and stored in the same step (`docs/schema.md`, "Data flow"). A scan compares against
+right away and stored in the same step (`docs/architecture.md`, data flow). The page scans
+tastytrade chains when credentials are set, else Yahoo; the CLI defaults to Yahoo (`--source`).
+A scan compares against
 the latest stored quote of each contract from before the run (`storage.reader.previous_chain`,
 up to 4 days back); where there is none, against the vendor's prior close. Synthetic chains are
 scanned but never stored or alerted on.
@@ -127,11 +129,11 @@ target: mu = ln(1 + m) / t + sigma^2 / 2. Time is in trading days, 252 a year.
 ## Running it
 
 ```bash
-python -m collector.scan --list                          # presets and saved scans
-python -m collector.scan --preset rich --symbols SPY,QQQ,IWM
-python -m collector.scan --preset stale --dte 0-21 --max-expiries 2
-python -m collector.scan --preset zero_dte --dte 0 --symbols SPY,QQQ
-python -m collector.scan --saved index_rich              # from config/scans.toml
+make scan ARGS="--list"                                   # presets and saved scans
+make scan ARGS="--preset rich --symbols SPY,QQQ,IWM"
+make scan ARGS="--preset stale --dte 0-21 --max-expiries 2"
+make scan ARGS="--preset zero_dte --dte 0 --symbols SPY,QQQ --source tastytrade"
+make scan ARGS="--saved index_rich"                       # from config/scans.toml
 ```
 
 Saved scans: copy `config/scans.example.toml` to `config/scans.toml`; the CLI reads it when it
@@ -154,6 +156,7 @@ The CLI notifies on hits due for a notification: never notified before, or last 
 than `cooldown_hours` ago. State is `data/alerts/state.json` under a file lock; it also records
 each preset's last hit set, which is how the page shows "new since the last run". Nothing is sent
 anywhere unless enabled; ntfy only when a URL is set. To scan on a schedule, run the CLI from
-launchd or systemd like the collectors.
+launchd or systemd like the collectors (`deploy/`).
 
 *2026-10-07: scanner, eight presets, write-through storage, opt-in alerts, options or the underlying.*
+*2026-10-08: renamed Screener; page defaults to tastytrade chains when connected.*

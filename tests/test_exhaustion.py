@@ -33,6 +33,7 @@ def frame(spot, vix=0.20, rate=0.02) -> pd.DataFrame:
 
 # --- the signal cannot see the future ---
 
+
 def test_zscore_is_point_in_time():
     rng = np.random.default_rng(0)
     full = pd.Series(rng.normal(size=800).cumsum() + 500)
@@ -64,7 +65,7 @@ def test_forward_return_conditions_on_the_signal():
 
 def test_forward_return_is_nan_without_usable_events():
     spot = pd.Series(np.linspace(100, 120, 50))
-    cond, uncond = forward_return(spot, np.zeros(50, dtype=bool), horizon=20)
+    cond, _ = forward_return(spot, np.zeros(50, dtype=bool), horizon=20)
     assert np.isnan(cond)
 
 
@@ -80,6 +81,7 @@ def test_zscore_fires_on_a_genuine_run_up():
 
 
 # --- precision arithmetic ---
+
 
 def test_wilson_brackets_the_point_estimate():
     lo, hi = wilson(3, 10)
@@ -116,10 +118,15 @@ def test_precision_flags_a_signal_that_beats_the_base_rate():
 
 # --- the event-driven runner ---
 
+
 def test_no_entries_is_buy_and_hold():
     data = frame(np.linspace(100, 150, 300))
-    res = engine.run_events(data, Strategy("m", moneyness=0.05, roll_days=63),
-                            np.zeros(len(data), dtype=bool), dividend_yield=0.0)
+    res = engine.run_events(
+        data,
+        Strategy("m", moneyness=0.05, roll_days=63),
+        np.zeros(len(data), dtype=bool),
+        dividend_yield=0.0,
+    )
     naked = engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0)
     assert res.hedged_cycles == 0
     assert res.total_premium == 0.0
@@ -130,8 +137,9 @@ def test_one_event_buys_exactly_one_put():
     data = frame(np.full(200, 100.0))
     entries = np.zeros(len(data), dtype=bool)
     entries[50] = True
-    res = engine.run_events(data, Strategy("m", moneyness=0.05, roll_days=63), entries,
-                            dividend_yield=0.0)
+    res = engine.run_events(
+        data, Strategy("m", moneyness=0.05, roll_days=63), entries, dividend_yield=0.0
+    )
     assert res.hedged_cycles == 1
     assert res.total_premium > 0
     # Flat market, so the put expires worthless and the book is out just that premium.
@@ -143,8 +151,9 @@ def test_events_during_a_hold_are_ignored():
     data = frame(np.full(200, 100.0))
     entries = np.zeros(len(data), dtype=bool)
     entries[50] = entries[60] = entries[70] = True  # all within one 63-day hold
-    res = engine.run_events(data, Strategy("m", moneyness=0.05, roll_days=63), entries,
-                            dividend_yield=0.0)
+    res = engine.run_events(
+        data, Strategy("m", moneyness=0.05, roll_days=63), entries, dividend_yield=0.0
+    )
     assert res.hedged_cycles == 1  # only the first fired
 
 
@@ -154,8 +163,9 @@ def test_event_hedge_floors_a_crash_it_catches():
     data = frame(path)
     entries = np.zeros(len(data), dtype=bool)
     entries[49] = True
-    hedged = engine.run_events(data, Strategy("m", moneyness=0.05, roll_days=63), entries,
-                               dividend_yield=0.0)
+    hedged = engine.run_events(
+        data, Strategy("m", moneyness=0.05, roll_days=63), entries, dividend_yield=0.0
+    )
     naked = engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0)
     assert hedged.equity.iloc[-1] > naked.equity.iloc[-1]  # the catch helped
     assert hedged.total_payoff > 0
@@ -165,7 +175,11 @@ def test_event_hedge_misses_a_crash_it_does_not_catch():
     # The whole point of the exhaustion finding: if the put is not on, the crash is unhedged.
     path = np.r_[np.full(50, 100.0), np.full(60, 60.0)]
     data = frame(path)
-    no_entry = engine.run_events(data, Strategy("m", moneyness=0.05, roll_days=63),
-                                 np.zeros(len(data), dtype=bool), dividend_yield=0.0)
+    no_entry = engine.run_events(
+        data,
+        Strategy("m", moneyness=0.05, roll_days=63),
+        np.zeros(len(data), dtype=bool),
+        dividend_yield=0.0,
+    )
     naked = engine.run(data, Strategy("bh", hedged=False), dividend_yield=0.0)
     assert no_entry.equity.iloc[-1] == pytest.approx(naked.equity.iloc[-1], rel=1e-9)

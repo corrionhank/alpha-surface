@@ -1,30 +1,30 @@
-# Light monochrome theme from .claude/STYLE_GUIDE.md: black on warm off-white, serif headings,
-# color only for status. Colors must match theme.STREAMLIT in src/present/theme.py
+# Indigo on cool white, from .claude/STYLE_GUIDE.md (2026-10-08, after Databento and Massive).
+# Colors must match theme.STREAMLIT in src/present/theme.py
 # (tests/test_theme.py enforces it). Changing this file needs a server restart.
 
 [theme]
 base = "light"
-primaryColor = "#111111"
-backgroundColor = "#f7f7f6"
-secondaryBackgroundColor = "#f1f1ef"
-textColor = "#111111"
-linkColor = "#111111"
-borderColor = "#cfcfcb"
-dataframeBorderColor = "#e4e4e1"
-dataframeHeaderBackgroundColor = "#f1f1ef"
-codeBackgroundColor = "#f1f1ef"
-codeTextColor = "#4a4a4a"
-greenColor = "#1d7a3e"
+primaryColor = "#6266e5"
+backgroundColor = "#f9fafe"
+secondaryBackgroundColor = "#f2f3fa"
+textColor = "#161a33"
+linkColor = "#4b4fd1"
+borderColor = "#cdd0e0"
+dataframeBorderColor = "#e4e6f0"
+dataframeHeaderBackgroundColor = "#f2f3fa"
+codeBackgroundColor = "#f2f3fa"
+codeTextColor = "#474b66"
+greenColor = "#14804a"
 orangeColor = "#8f5b00"
 yellowColor = "#8f5b00"
-redColor = "#b42318"
-chartCategoricalColors = ["#111111", "#8a8a86", "#cfcfcb"]
+redColor = "#c0262d"
+chartCategoricalColors = ["#6266e5", "#8b5cf6", "#9a9eb8"]
 
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:wght@400&display=swap"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
 baseFontWeight = 400
-headingFontWeights = [400, 600, 600, 600, 600, 600]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
 headingFontSizes = ["1.75rem", "1rem", "1rem", "0.9375rem", "0.875rem", "0.875rem"]
 metricValueFontSize = "1.375rem"
 metricValueFontWeight = 600
@@ -36,8 +36,8 @@ showSidebarBorder = true
 
 [theme.sidebar]
 backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f1f1ef"
-borderColor = "#cfcfcb"
+secondaryBackgroundColor = "#f2f3fa"
+borderColor = "#cdd0e0"
 
 [server]
 runOnSave = true

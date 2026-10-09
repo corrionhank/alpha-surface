@@ -6,9 +6,9 @@ import math
 
 import pytest
 
-from collector.chains import SyntheticChains
-from derive import option_metrics as om
-from derive.black_scholes import price
+from alphasurface.collector.chains import SyntheticChains
+from alphasurface.derive import option_metrics as om
+from alphasurface.derive.black_scholes import price
 
 S, R, Q = 100.0, 0.04, 0.01
 

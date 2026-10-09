@@ -55,9 +55,11 @@ def zscore(spot: pd.Series, lookback: int, min_periods: int = 252) -> pd.Series:
 
 def vix_percentile(vix: pd.Series, min_periods: int = 252) -> pd.Series:
     """Where VIX sits in its own expanding history, as a point-in-time percentile in [0, 1]."""
-    return vix.expanding(min_periods).apply(
-        lambda w: (w[:-1] < w[-1]).mean() if len(w) > 1 else np.nan, raw=True
-    ).shift(1)
+    return (
+        vix.expanding(min_periods)
+        .apply(lambda w: (w[:-1] < w[-1]).mean() if len(w) > 1 else np.nan, raw=True)
+        .shift(1)
+    )
 
 
 def episodes(signal: pd.Series) -> int:
@@ -96,8 +98,12 @@ def precision(signal: pd.Series, truth: np.ndarray) -> dict:
     prec = hits / n if n else math.nan
     lo, hi = wilson(hits, n)
     return {
-        "events": n, "precision": prec, "base_rate": base, "lift": prec - base if n else math.nan,
-        "ci_lo": lo, "ci_hi": hi,
+        "events": n,
+        "precision": prec,
+        "base_rate": base,
+        "lift": prec - base if n else math.nan,
+        "ci_lo": lo,
+        "ci_hi": hi,
         # The signal beats the dart board only if the whole CI clears the base rate.
         "beats_base": bool(n and lo > base),
     }
@@ -132,15 +138,19 @@ def main() -> None:
     n = len(df)
     rng = np.random.default_rng(20260715)
 
-    print(f"\nEXHAUSTION HEDGING. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
-          f"{n:,} sessions. Exploratory (see PROTOCOL.md).")
+    print(
+        f"\nEXHAUSTION HEDGING. SPY {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d}, "
+        f"{n:,} sessions. Exploratory (see PROTOCOL.md)."
+    )
 
     # Pre-compute the oracle bear labels once per horizon used below.
     truth = {h: bear_ahead(spot.to_numpy(), h) for h in (ROLLS["quarterly"], ROLLS["annual"])}
 
     # --- THE CRUX: conditional precision, before any backtest. ---
-    print("\nCRUX: after the signal fires, is a bear (15% drawdown within the put's tenor) "
-          "more likely than at a random moment?")
+    print(
+        "\nCRUX: after the signal fires, is a bear (15% drawdown within the put's tenor) "
+        "more likely than at a random moment?"
+    )
     diag = {}
     for name, look, sigma, tenor in MOMENTUM:
         sig = zscore(spot, look) > sigma
@@ -150,18 +160,28 @@ def main() -> None:
     diag["VIX < 20th pct (complacent)"] = precision((vp < 0.20).shift(1), truth[ROLLS["annual"]])
     diag["VIX < 10th pct (very calm)"] = precision((vp < 0.10).shift(1), truth[ROLLS["annual"]])
     diag["Steep contango >10%"] = precision(
-        ((df.get("vix3m") / vix > 1.10)).shift(1), truth[ROLLS["annual"]]
+        (df.get("vix3m") / vix > 1.10).shift(1), truth[ROLLS["annual"]]
     )
 
     tbl = pd.DataFrame(diag).T
-    print(tbl.to_string(formatters={
-        "events": "{:.0f}".format, "precision": "{:.0%}".format, "base_rate": "{:.0%}".format,
-        "lift": "{:+.0%}".format, "ci_lo": "{:.0%}".format, "ci_hi": "{:.0%}".format,
-        "beats_base": "{}".format,
-    }))
-    print("\n'events' is the number of distinct signals in 21 years, not signal-days. A handful of "
-          "events cannot support any claim, and 'beats_base' is only True if the whole Wilson\n"
-          "interval clears the base rate. Read this table before the backtest below.")
+    print(
+        tbl.to_string(
+            formatters={
+                "events": "{:.0f}".format,
+                "precision": "{:.0%}".format,
+                "base_rate": "{:.0%}".format,
+                "lift": "{:+.0%}".format,
+                "ci_lo": "{:.0%}".format,
+                "ci_hi": "{:.0%}".format,
+                "beats_base": "{}".format,
+            }
+        )
+    )
+    print(
+        "\n'events' is the number of distinct signals in 21 years, not signal-days. A handful of "
+        "events cannot support any claim, and 'beats_base' is only True if the whole Wilson\n"
+        "interval clears the base rate. Read this table before the backtest below."
+    )
 
     # --- The backtest, which only matters for signals that cleared the crux. ---
     print("\nBACKTEST (event-driven: buy a 5% OTM put the day the signal fires, hold to expiry):")
@@ -176,23 +196,36 @@ def main() -> None:
         if res.hedged_cycles and args.trials:
             twins = [
                 metrics.summarize(
-                    engine.run_events(df, strat, _random_entries(n, res.hedged_cycles, tenor, rng)
-                                      ).equity, rate)["Sharpe"]
+                    engine.run_events(
+                        df, strat, _random_entries(n, res.hedged_cycles, tenor, rng)
+                    ).equity,
+                    rate,
+                )["Sharpe"]
                 for _ in range(args.trials)
             ]
             row["Beats random"] = float(np.mean(np.array(twins) < row["Sharpe"]))
         rows[name] = row
 
     bt = pd.DataFrame(rows).T
-    print(bt.to_string(formatters={
-        "CAGR": "{:.2%}".format, "Sharpe": "{:.3f}".format, "MaxDD": "{:.1%}".format,
-        "N hedges": "{:.0f}".format, "Beats random": lambda v: "n/a" if pd.isna(v) else f"{v:.0%}",
-    }))
+    print(
+        bt.to_string(
+            formatters={
+                "CAGR": "{:.2%}".format,
+                "Sharpe": "{:.3f}".format,
+                "MaxDD": "{:.1%}".format,
+                "N hedges": "{:.0f}".format,
+                "Beats random": lambda v: "n/a" if pd.isna(v) else f"{v:.0%}",
+            }
+        )
+    )
 
     if not args.no_figures:
         out = Path(args.outdir)
         out.mkdir(parents=True, exist_ok=True)
-        print("\nFigure:", report.precision_bars(tbl, out, title="Does a stretched market predict a bear?"))
+        print(
+            "\nFigure:",
+            report.precision_bars(tbl, out, title="Does a stretched market predict a bear?"),
+        )
     tbl.to_csv(Path(args.outdir) / "exhaustion-precision.csv")
 
 
@@ -215,8 +248,13 @@ def _random_entries(n: int, count: int, tenor: int, rng) -> np.ndarray:
 
 def _stats(res, rate) -> dict:
     s = metrics.summarize(res.equity, rate)
-    return {"CAGR": s["CAGR"], "Sharpe": s["Sharpe"], "MaxDD": s["MaxDD"],
-            "N hedges": res.hedged_cycles, "Beats random": np.nan}
+    return {
+        "CAGR": s["CAGR"],
+        "Sharpe": s["Sharpe"],
+        "MaxDD": s["MaxDD"],
+        "N hedges": res.hedged_cycles,
+        "Beats random": np.nan,
+    }
 
 
 if __name__ == "__main__":

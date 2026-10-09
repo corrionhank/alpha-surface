@@ -7,8 +7,8 @@ import math
 
 import pytest
 
-from derive import black_scholes as bs
-from derive import pot_odds as po
+from alphasurface.derive import black_scholes as bs
+from alphasurface.derive import pot_odds as po
 
 
 def test_even_money_needs_half():

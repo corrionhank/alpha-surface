@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from derive import sentiment
+from alphasurface.derive import sentiment
 
 
 def _series(values, start="2015-01-01"):
@@ -25,8 +25,17 @@ def _market(n=900, seed=1, spy_drift=0.0004, vix_level=18.0):
     return spy, vix, vix3m, tlt, hyg, ief
 
 
-@pytest.mark.parametrize("score,band", [(10, "extreme fear"), (30, "fear"), (50, "neutral"),
-                                        (60, "greed"), (90, "extreme greed"), (float("nan"), "n/a")])
+@pytest.mark.parametrize(
+    "score,band",
+    [
+        (10, "extreme fear"),
+        (30, "fear"),
+        (50, "neutral"),
+        (60, "greed"),
+        (90, "extreme greed"),
+        (float("nan"), "n/a"),
+    ],
+)
 def test_bands(score, band):
     assert sentiment.label(score) == band
 
@@ -45,8 +54,14 @@ def test_expanding_score_has_no_lookahead():
 def test_score_is_an_average_of_components_in_range():
     fg = sentiment.fear_greed(*_market())
     assert 0 <= fg.score <= 100 and fg.label != "n/a"
-    assert set(fg.components["name"]) == {"VIX vs 50-day", "SPY vs 125-day", "Term structure",
-                                          "Safe-haven demand", "Junk-bond demand", "Realized vol"}
+    assert set(fg.components["name"]) == {
+        "VIX vs 50-day",
+        "SPY vs 125-day",
+        "Term structure",
+        "Safe-haven demand",
+        "Junk-bond demand",
+        "Realized vol",
+    }
     assert fg.score == pytest.approx(fg.components["score"].mean())
     assert fg.history.between(0, 100).all()
 

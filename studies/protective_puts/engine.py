@@ -171,8 +171,14 @@ def vol_scale(
 
     daily = exposure * ret + (1 - exposure) * data["rate"] / TRADING_DAYS
     equity = result.equity.iloc[0] * (1 + daily).cumprod()
-    return Result(name or f"{result.name} + vol target", equity, result.premium_paid,
-                  result.payoff_received, result.cycles, result.hedged_cycles)
+    return Result(
+        name or f"{result.name} + vol target",
+        equity,
+        result.premium_paid,
+        result.payoff_received,
+        result.cycles,
+        result.hedged_cycles,
+    )
 
 
 def run(
@@ -198,8 +204,12 @@ def run(
     if not strategy.hedged:
         # Buy and hold, dividends reinvested. The benchmark everything is measured against.
         equity = capital * (spot / spot[0]) * np.exp(q * np.arange(n) / TRADING_DAYS)
-        return Result(strategy.name, pd.Series(equity, index=data.index),
-                      pd.Series(premium, index=data.index), pd.Series(payoff, index=data.index))
+        return Result(
+            strategy.name,
+            pd.Series(equity, index=data.index),
+            pd.Series(premium, index=data.index),
+            pd.Series(payoff, index=data.index),
+        )
 
     equity = np.empty(n)
     value = capital
@@ -226,12 +236,23 @@ def run(
         def leg(m: float, _s=start, _e=expiry, _w=window, _t=tenor, _r=remaining):
             """Cost, daily marks and expiry intrinsic of one put struck m below the roll spot."""
             k = spot[_s] * (1 - m)
-            entry = float(put_price(
-                spot[_s], k, _t, rate[_s], implied_vol(vix[_s], m, skew_slope, _t, term_premium), q
-            ))
+            entry = float(
+                put_price(
+                    spot[_s],
+                    k,
+                    _t,
+                    rate[_s],
+                    implied_vol(vix[_s], m, skew_slope, _t, term_premium),
+                    q,
+                )
+            )
             marks = put_price(
-                spot[_w], k, _r, rate[_w],
-                implied_vol(vix[_w], m, skew_slope, _r, term_premium), q,
+                spot[_w],
+                k,
+                _r,
+                rate[_w],
+                implied_vol(vix[_w], m, skew_slope, _r, term_premium),
+                q,
             )
             return entry, marks, max(k - spot[_e], 0.0)
 
@@ -302,17 +323,29 @@ def run_events(
             tenor = (expiry - i) / TRADING_DAYS
             remaining = (expiry - window) / TRADING_DAYS
 
-            cost = float(put_price(
-                spot[i], strike, tenor, rate[i],
-                implied_vol(vix[i], strategy.moneyness, skew_slope, tenor, term_premium), q,
-            ))
+            cost = float(
+                put_price(
+                    spot[i],
+                    strike,
+                    tenor,
+                    rate[i],
+                    implied_vol(vix[i], strategy.moneyness, skew_slope, tenor, term_premium),
+                    q,
+                )
+            )
             units = value / (spot[i] + cost)
             premium[i] += units * cost
             marks = put_price(
-                spot[window], strike, remaining, rate[window],
-                implied_vol(vix[window], strategy.moneyness, skew_slope, remaining, term_premium), q,
+                spot[window],
+                strike,
+                remaining,
+                rate[window],
+                implied_vol(vix[window], strategy.moneyness, skew_slope, remaining, term_premium),
+                q,
             )
-            equity[window] = units * (spot[window] * np.exp(q * (window - i) / TRADING_DAYS) + marks)
+            equity[window] = units * (
+                spot[window] * np.exp(q * (window - i) / TRADING_DAYS) + marks
+            )
             payoff[expiry] += units * max(strike - spot[expiry], 0.0)
             value = equity[expiry]
             hedged += 1

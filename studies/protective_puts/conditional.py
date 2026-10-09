@@ -36,8 +36,12 @@ def main() -> None:
     p.add_argument("--skew", type=float, default=0.5)
     p.add_argument("--term-premium", type=float, default=0.025)
     p.add_argument("--dividend-yield", type=float, default=0.018)
-    p.add_argument("--percentile", type=float, default=0.80,
-                   help="how extreme a reading has to be to count, default 80th percentile")
+    p.add_argument(
+        "--percentile",
+        type=float,
+        default=0.80,
+        help="how extreme a reading has to be to count, default 80th percentile",
+    )
     p.add_argument("--trials", type=int, default=200, help="random-timing trials per signal")
     p.add_argument("--outdir", default="studies/protective_puts/figures")
     p.add_argument("--no-figures", action="store_true")
@@ -54,16 +58,27 @@ def main() -> None:
     flags = signals.build(df.index, df["spot"], percentile=args.percentile)
     rate = df["rate"]
 
-    print(f"\nSPY daily, {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d} "
-          f"({len(df):,} sessions). Hedge: {HEDGE.name}, bought only when the signal is on.")
-    print(f"Signals are point-in-time: expanding percentiles at the {args.percentile:.0%} level, "
-          "each series lagged by its real publication delay.\n")
+    print(
+        f"\nSPY daily, {df.index[0]:%Y-%m-%d} to {df.index[-1]:%Y-%m-%d} "
+        f"({len(df):,} sessions). Hedge: {HEDGE.name}, bought only when the signal is on."
+    )
+    print(
+        f"Signals are point-in-time: expanding percentiles at the {args.percentile:.0%} level, "
+        "each series lagged by its real publication delay.\n"
+    )
 
     def run(name, hedge_on=None, strategy=HEDGE):
-        res = engine.run(df, strategy, skew_slope=args.skew, term_premium=args.term_premium,
-                         dividend_yield=args.dividend_yield, hedge_on=hedge_on)
-        return engine.Result(name, res.equity, res.premium_paid, res.payoff_received,
-                             res.cycles, res.hedged_cycles)
+        res = engine.run(
+            df,
+            strategy,
+            skew_slope=args.skew,
+            term_premium=args.term_premium,
+            dividend_yield=args.dividend_yield,
+            hedge_on=hedge_on,
+        )
+        return engine.Result(
+            name, res.equity, res.premium_paid, res.payoff_received, res.cycles, res.hedged_cycles
+        )
 
     baselines = [run("Buy and hold", strategy=scenarios.BUY_AND_HOLD), run("Always hedged")]
     conditional = [run(col, flags[col].to_numpy()) for col in flags.columns]
@@ -71,22 +86,33 @@ def main() -> None:
     table = metrics.table(baselines + conditional, rate)
     table["Hedged"] = [r.duty_cycle for r in baselines + conditional]
     print("WHEN TO PUT THE HEDGE ON")
-    print(metrics.render(table[["CAGR", "Vol", "Sharpe", "MaxDD", "Calmar", "Premium",
-                                "Recovery", "Hedged"]].rename(columns={"Hedged": "Duty"})), "\n")
+    print(
+        metrics.render(
+            table[
+                ["CAGR", "Vol", "Sharpe", "MaxDD", "Calmar", "Premium", "Recovery", "Hedged"]
+            ].rename(columns={"Hedged": "Duty"})
+        ),
+        "\n",
+    )
 
     # The control. Does the signal beat a coin flip that hedges just as often?
-    print(f"SKILL TEST: each signal against {args.trials} random-timing twins at the same duty cycle")
+    print(
+        f"SKILL TEST: each signal against {args.trials} random-timing twins at the same duty cycle"
+    )
     rng = np.random.default_rng(20260713)
     skill, draws = {}, {}
     for res in conditional:
         if res.duty_cycle in (0.0, 1.0):
             continue
-        sharpes = np.array([
-            metrics.summarize(
-                run("r", random_hedge(len(df), HEDGE.roll_days, res.duty_cycle, rng)).equity, rate
-            )["Sharpe"]
-            for _ in range(args.trials)
-        ])
+        sharpes = np.array(
+            [
+                metrics.summarize(
+                    run("r", random_hedge(len(df), HEDGE.roll_days, res.duty_cycle, rng)).equity,
+                    rate,
+                )["Sharpe"]
+                for _ in range(args.trials)
+            ]
+        )
         actual = metrics.summarize(res.equity, rate)["Sharpe"]
         draws[res.name] = sharpes
         skill[res.name] = {
@@ -97,12 +123,21 @@ def main() -> None:
             "Beats": (sharpes < actual).mean(),
         }
     skill_df = pd.DataFrame(skill).T
-    print(skill_df.to_string(formatters={
-        "Duty": "{:.0%}".format, "Sharpe": "{:.3f}".format, "Random mean": "{:.3f}".format,
-        "Random best": "{:.3f}".format, "Beats": "{:.0%}".format,
-    }))
-    print("\n'Beats' is the share of random twins the signal outperformed. 50% is a coin flip:\n"
-          "the signal is doing nothing that hedging less often would not have done by itself.\n")
+    print(
+        skill_df.to_string(
+            formatters={
+                "Duty": "{:.0%}".format,
+                "Sharpe": "{:.3f}".format,
+                "Random mean": "{:.3f}".format,
+                "Random best": "{:.3f}".format,
+                "Beats": "{:.0%}".format,
+            }
+        )
+    )
+    print(
+        "\n'Beats' is the share of random twins the signal outperformed. 50% is a coin flip:\n"
+        "the signal is doing nothing that hedging less often would not have done by itself.\n"
+    )
 
     if not args.no_figures:
         out = Path(args.outdir)

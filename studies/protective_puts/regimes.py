@@ -38,10 +38,12 @@ def methods(df) -> dict:
     return {
         "Buy & hold": engine.run(df, scenarios.BUY_AND_HOLD).equity,
         "Always-hedged put": engine.run(
-            df, Strategy("put", moneyness=0.05, roll_days=ROLLS["monthly"])).equity,
+            df, Strategy("put", moneyness=0.05, roll_days=ROLLS["monthly"])
+        ).equity,
         "Vol target 15%": engine.run_vol_target(df, target=0.15, max_exposure=1.5).equity,
         "De-risk on 2σ drop": engine.run_exposure(
-            df, frontier.downside_derisk(df, 21, 2.0, off=0.0, hold=63), "d").equity,
+            df, frontier.downside_derisk(df, 21, 2.0, off=0.0, hold=63), "d"
+        ).equity,
         "Trend 200d": engine.run_exposure(df, frontier.trend_ma(df, 200, 0.0), "t").equity,
         "TS momentum 126d": engine.run_exposure(df, frontier.ts_momentum(df, 126, 0.0), "m").equity,
     }
@@ -62,7 +64,7 @@ def score(df, curves, rate) -> dict:
     """Per-window metrics for every method, plus the window's own descriptors."""
     wins = windows(df.index)
     out = {"windows": [], "metrics": {}}
-    for (lo, hi), label in zip(wins, REGIMES):
+    for (lo, hi), label in zip(wins, REGIMES, strict=False):
         mask = (df.index >= lo) & (df.index < hi)
         sub = df.index[mask]
         span = f"{sub[0]:%Y}-{sub[-1]:%Y}"
@@ -98,9 +100,11 @@ def main() -> None:
 
     print(f"\nREGIME ANALYSIS. {df.index[0]:%Y-%m} to {df.index[-1]:%Y-%m}, five 5-year windows.\n")
     for i, w in enumerate(scored["windows"]):
-        print(f"  W{i+1} {w['span']}  {w['label']:<26} avg VIX {w['avg_vix']:.0f}  |  "
-              f"buy-hold CAGR {cagr.loc['Buy & hold'].iloc[i]:+.1%}, "
-              f"MaxDD {dd.loc['Buy & hold'].iloc[i]:.0%}")
+        print(
+            f"  W{i + 1} {w['span']}  {w['label']:<26} avg VIX {w['avg_vix']:.0f}  |  "
+            f"buy-hold CAGR {cagr.loc['Buy & hold'].iloc[i]:+.1%}, "
+            f"MaxDD {dd.loc['Buy & hold'].iloc[i]:.0%}"
+        )
 
     print("\nCAGR by window:")
     print((cagr * 100).round(1).to_string())
@@ -118,6 +122,7 @@ def main() -> None:
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)
     from studies.protective_puts import report
+
     print("\nFigure:", report.regime_panel(df, curves, scored, cagr, dd, sharpe, out))
     cagr.to_csv(out / "regimes-cagr.csv")
 

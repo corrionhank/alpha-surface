@@ -92,8 +92,9 @@ def test_the_signal_is_only_read_at_roll_dates():
     data = frame(np.full(43, 100.0))
     flip = np.zeros(len(data), dtype=bool)
     flip[0] = True  # on at the first roll only
-    res = engine.run(data, Strategy("p", moneyness=0.05, roll_days=21), hedge_on=flip,
-                     dividend_yield=0.0)
+    res = engine.run(
+        data, Strategy("p", moneyness=0.05, roll_days=21), hedge_on=flip, dividend_yield=0.0
+    )
     assert res.cycles == 2
     assert res.hedged_cycles == 1
     assert res.duty_cycle == pytest.approx(0.5)
@@ -111,7 +112,7 @@ def test_random_hedge_is_constant_within_a_roll_cycle():
     signal that can only act at the roll."""
     flags = random_hedge(84, 21, 0.5, np.random.default_rng(3))
     for start in range(0, 84, 21):
-        block = flags[start:start + 21]
+        block = flags[start : start + 21]
         assert block.all() or not block.any()
 
 

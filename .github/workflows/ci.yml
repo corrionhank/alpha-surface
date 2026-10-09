@@ -1,6 +1,7 @@
-# CI on every push and pull request: lint and the full test suite on a clean machine (no stored
-# market data, no credentials; data-dependent tests skip). CD on main: once CI passes, build the
-# app image and publish it to GitHub Container Registry, tagged latest and with the commit SHA.
+# CI on every push and pull request: lint, types, tests with a coverage floor, a dependency audit
+# and a secret scan, on a clean machine (no stored market data, no credentials; data-dependent
+# tests skip). Pull requests also build the image. CD on main: once the checks pass, build the
+# image and publish it to GitHub Container Registry, tagged latest and with the commit SHA.
 name: CI
 
 on:
@@ -21,27 +22,81 @@ jobs:
     name: Lint and test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          make install-locked PY=python
+      - name: Lint
+        run: make lint PY=python
+      - name: Type check (informational until the backlog is cleared)
+        continue-on-error: true
+        run: make typecheck PY=python
+      - name: Test with coverage
+        env:
+          ALPHASURFACE_DATA_DIR: ${{ runner.temp }}/data  # an empty store: data-dependent tests skip
+        run: make cov PY=python
+      - name: Upload coverage
+        if: always() && matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install
+      - name: Audit pinned dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check src tests studies
-      - name: Test
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements-dev.lock --no-deps --disable-pip --progress-spinner off
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
         env:
-          DIP_DATA_DIR: ${{ runner.temp }}/data  # an empty store: data-dependent tests skip
-        run: pytest -q
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build image
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
 
   image:
     name: Build and publish image
-    needs: test
+    needs: [test, audit, secrets]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30

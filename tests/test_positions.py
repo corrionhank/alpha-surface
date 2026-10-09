@@ -8,21 +8,30 @@ import math
 import numpy as np
 import pytest
 
-from derive import black_scholes as bs
-from derive import positions as pos
-from derive import simulate as sim
+from alphasurface.derive import black_scholes as bs
+from alphasurface.derive import positions as pos
+from alphasurface.derive import simulate as sim
 
 
 @pytest.mark.parametrize("kind", ["call", "put"])
-@pytest.mark.parametrize("S,K,T,sig", [(100, 100, 0.5, 0.2), (90, 110, 0.1, 0.35), (120, 80, 2.0, 0.15)])
+@pytest.mark.parametrize(
+    "S,K,T,sig", [(100, 100, 0.5, 0.2), (90, 110, 0.1, 0.35), (120, 80, 2.0, 0.15)]
+)
 def test_vector_matches_scalar(kind, S, K, T, sig):
-    assert pos.bs_price(S, K, T, 0.04, sig, 0.01, kind) == pytest.approx(bs.price(S, K, T, 0.04, sig, 0.01, kind))
-    assert pos.bs_delta(S, K, T, 0.04, sig, 0.01, kind) == pytest.approx(bs.greeks(S, K, T, 0.04, sig, 0.01, kind).delta)
+    assert pos.bs_price(S, K, T, 0.04, sig, 0.01, kind) == pytest.approx(
+        bs.price(S, K, T, 0.04, sig, 0.01, kind)
+    )
+    assert pos.bs_delta(S, K, T, 0.04, sig, 0.01, kind) == pytest.approx(
+        bs.greeks(S, K, T, 0.04, sig, 0.01, kind).delta
+    )
 
 
 def test_parity_over_arrays():
     S = np.linspace(50, 150, 11)
-    c, p = pos.bs_price(S, 100, 0.5, 0.04, 0.25, 0.01, "call"), pos.bs_price(S, 100, 0.5, 0.04, 0.25, 0.01, "put")
+    c, p = (
+        pos.bs_price(S, 100, 0.5, 0.04, 0.25, 0.01, "call"),
+        pos.bs_price(S, 100, 0.5, 0.04, 0.25, 0.01, "put"),
+    )
     assert c - p == pytest.approx(S * math.exp(-0.01 * 0.5) - 100 * math.exp(-0.04 * 0.5))
 
 
@@ -31,12 +40,16 @@ def test_expiry_value_is_the_payoff():
     strikes = sorted(leg.strike for leg in condor)
     assert strikes == [90, 95, 105, 110]
     S = np.array([80.0, 92.5, 100.0, 107.5, 120.0])
-    assert pos.value(condor, S, 0, 0.04, 0.2, 0.0).tolist() == pytest.approx([-500, -250, 0, -250, -500])
+    assert pos.value(condor, S, 0, 0.04, 0.2, 0.0).tolist() == pytest.approx(
+        [-500, -250, 0, -250, -500]
+    )
 
 
 def test_stock_pnl_and_premium_sign():
     stock = [pos.Leg("stock", 0, 1)]
-    assert pos.pnl(stock, 100, np.array([110.0]), 30, 10, 0.04, 0.2, 0.2, 0.0)[0] == pytest.approx(1000)
+    assert pos.pnl(stock, 100, np.array([110.0]), 30, 10, 0.04, 0.2, 0.2, 0.0)[0] == pytest.approx(
+        1000
+    )
     assert pos.premium(pos.presets(100.0)["Short put"], 100, 30, 0.04, 0.2, 0.0) < 0
     assert pos.premium(stock, 100, 30, 0.04, 0.2, 0.0) == 0
 

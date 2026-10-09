@@ -32,8 +32,9 @@ def test_full_exposure_is_buy_and_hold():
 
 def test_zero_exposure_earns_the_bill_rate():
     data = frame(np.linspace(100, 200, 253), rate=0.04)  # a year of trading days
-    cash = engine.run_exposure(data, np.zeros(len(data)), "cash", dividend_yield=0.0,
-                               capital=1_000.0)
+    cash = engine.run_exposure(
+        data, np.zeros(len(data)), "cash", dividend_yield=0.0, capital=1_000.0
+    )
     # Every day compounds at the bill rate and the rallying price is ignored entirely.
     assert cash.equity.iloc[-1] == pytest.approx(1_000.0 * (1 + 0.04 / 252) ** len(data), rel=1e-9)
 
@@ -87,8 +88,14 @@ def test_the_sweep_builds_a_large_diverse_family():
     strategies = frontier.build_strategies(data)
     assert len(strategies) > 60
     families = {fam for _, fam, _ in strategies}
-    assert families == {"Vol target", "Trend", "TS momentum", "Drawdown ctrl", "VIX regime",
-                        "Downside"}
+    assert families == {
+        "Vol target",
+        "Trend",
+        "TS momentum",
+        "Drawdown ctrl",
+        "VIX regime",
+        "Downside",
+    }
     for _, _, exp in strategies:
         assert len(exp) == len(data)
         assert np.isfinite(exp).all()

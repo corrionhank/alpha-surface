@@ -1,0 +1,13 @@
+[Unit]
+Description=Collect tastytrade market metrics and option chains
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__REPO__
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO__/.venv/bin/python -m alphasurface.collector.tastytrade_collector
+TimeoutStartSec=300
+Nice=10

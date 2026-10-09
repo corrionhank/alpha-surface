@@ -21,14 +21,15 @@
 21 years of S&P 500 data, 2005-07 to 2026-07. NumPy, pandas, SciPy, Matplotlib, yfinance.
 
 ```
-python -m studies.protective_puts
-python -m studies.protective_puts --skew 0.0 --years 10   # flat VIX, shorter window
+pip install -e ".[studies]"                       # matplotlib, for the figures
+make study
+make study ARGS="--skew 0.0 --years 10"           # flat VIX, shorter window
 ```
 
-Reads SPY, ^VIX and ^IRX daily bars from storage. Seed them first:
+Reads SPY, ^VIX and ^IRX daily bars from storage. Seed them first (a one-time 25-year pull):
 
 ```
-python -m collector.yfinance_collector --interval 1d --period 25y --symbols 'SPY,^VIX,^IRX'
+python -m alphasurface.collector.yfinance_collector --interval 1d --period 25y --symbols 'SPY,^VIX,^IRX'
 ```
 
 ## The answer
@@ -297,7 +298,7 @@ and drawdown) runs from:
 
 | Strategy | Family | CAGR | Vol | Sharpe | MaxDD | Calmar |
 |---|---|---|---|---|---|---|
-| Buy and hold | — | 10.98% | 19.2% | 0.55 | -55.4% | 0.20 |
+| Buy and hold | n/a | 10.98% | 19.2% | 0.55 | -55.4% | 0.20 |
 | Vol target 15%/21d/1.5x | Vol target | 11.72% | 15.4% | 0.69 | -35.5% | 0.33 |
 | **De-risk after 2σ drop, 21d** | Downside | **10.27%** | 11.4% | **0.77** | **-23.3%** | 0.44 |
 | TS momentum 189d | Trend | 9.65% | 12.1% | 0.68 | -21.0% | 0.46 |
