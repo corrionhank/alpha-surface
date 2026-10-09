@@ -136,5 +136,6 @@ read-only by design: no code path places, cancels or changes an order.
 | [docs/scanner.md](docs/scanner.md) | Screener rules, thresholds, CLI and alerts |
 | [docs/decisions.md](docs/decisions.md) | Architecture decisions and their dates |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
+| [TODO.md](TODO.md) | Open work, highest value first |
 
 License: not yet chosen.

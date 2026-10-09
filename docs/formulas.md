@@ -396,9 +396,55 @@ $S_t^{\text{replay}} = S_0 \cdot P_{t_0 + t}/P_{t_0}$.
 
 ---
 
+## 15. Volatility surface
+
+Built per expiry on the Volatility page (`derive.vol_surface`, `derive.forward`).
+
+**Expiries.** For each target tenor of 7, 14, 21, 30, 45, 60, 90, 120, 180, 270 and 365 days up to
+the chosen horizon, the listed expiry nearest it; duplicates dropped, at most 12, same-day
+expiries left out.
+
+**Time.** From the quote's capture instant to settlement (16:00 ET for PM-settled, 09:30 ET for
+AM-settled), in years of 365 days, floored at one hour:
+
+$$T = \max\left(\frac{t_{\text{settle}} - t_{\text{now}}}{365\ \text{days}},\ \frac{1}{8760}\right)$$
+
+**Forward.** Put-call parity at the strikes nearest the money, where both the call and the put
+have a two-sided quote, ranked by $|C - P|$; the median of the five nearest:
+
+$$F = \operatorname{median}_i \left[K_i + e^{rT}\,(C_i - P_i)\right]$$
+
+The carry forward $S e^{(r - q)T}$ stands in only when no strike has both sides quoted.
+
+**Implied vol.** Black-76 on that forward, discounted at the rate, solved from the mid:
+
+$$C = e^{-rT}\left[F N(d_1) - K N(d_2)\right] \qquad P = e^{-rT}\left[K N(-d_2) - F N(-d_1)\right]$$
+$$d_{1,2} = \frac{\ln(F/K) \pm \tfrac{1}{2}\sigma^2 T}{\sigma\sqrt{T}}$$
+
+No spot and no dividend yield enter, so an error in either cannot split the put and call wings
+at the money. Quotes kept: a positive bid, an ask above it, a spread no wider than half the mid,
+out of the money against $F$ (puts with $K < F$, calls with $K \ge F$), and $1\% \le \sigma \le 300\%$.
+An expiry needs four survivors to count as a smile.
+
+**Moneyness and delta.** $m = \ln(K/F)$, shown as $K/F - 1$ in percent. Delta is the undiscounted
+forward delta, $N(d_1)$ for calls and $N(d_1) - 1$ for puts.
+
+**Vol grid.** Per expiry, IV at $m = 0$ (ATM) and at the 10- and 25-delta points of each wing,
+interpolated on that wing and left blank when the quoted strikes do not reach that delta:
+
+$$\text{RR}_{25} = \sigma_{25C} - \sigma_{25P} \qquad \text{BF}_{25} = \tfrac{1}{2}(\sigma_{25C} + \sigma_{25P}) - \sigma_{\text{ATM}}$$
+
+**Constant maturity.** ATM at a fixed tenor $\tau$ interpolated linearly in total variance
+$w = \sigma^2 T$ between the bracketing expiries, so $\sigma_\tau = \sqrt{w(\tau)/\tau}$; risk
+reversal and butterfly linearly in $T$. Term slope is $\sigma_{90\text{D}} - \sigma_{30\text{D}}$,
+or the longest listed tenor in place of 90 days.
+
+---
+
 *2026-07-10: initial formula reference.*
 *2026-07-13: section 11, pot odds.*
 *2026-08-09: section 12, regime flag.*
 *2026-10-07: section 13, single-contract metrics.*
 *2026-10-07: section 14, simulation and scenarios.*
 *2026-10-08: trimmed to what the code computes (range estimators, technical indicators, beta, Breeden-Litzenberger removed); section 14 describes the engine behind the Screener's comparison.*
+*2026-10-08: section 15, volatility surface (parity forward, Black-76, vol grid).*

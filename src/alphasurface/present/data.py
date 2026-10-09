@@ -105,6 +105,55 @@ def market_open(now: pd.Timestamp | None = None) -> bool:
     return clock.is_open(now)
 
 
+PriceView = tuple[float, float, str, "tuple[str, float] | None"]
+
+
+def price_view(
+    daily: pd.DataFrame, q: dict | None, now: pd.Timestamp | None = None
+) -> PriceView | None:
+    """What a quote header shows: (price, reference, label, extended).
+
+    In the session, the live mark against the prior close. Outside it, the official close against
+    the close before, with any pre-market or after-hours mark as `extended`, so an extended-hours
+    move never reads as the day's change. `daily` is the symbol's 1d bars, `q` its live quote.
+    """
+    now = now or pd.Timestamp.now(tz=ET)
+    if daily.empty:
+        if q is None:
+            return None
+        return q["last"], q["prev"], f"{feed_label() or 'Live'}, {now:%-I:%M %p} ET", None
+    dates = daily["ts"].dt.tz_convert(ET).dt.date
+    closes = daily["close"].astype(float)
+    if q and market_open(now):
+        # Today's bar may already be in the store; the reference is the last close before today.
+        prior = closes[dates < now.date()]
+        prev = (
+            q["prev"]
+            if q["prev"] == q["prev"]
+            else (float(prior.iloc[-1]) if len(prior) else math.nan)
+        )
+        return q["last"], prev, f"{feed_label() or 'Live'}, {now:%-I:%M %p} ET", None
+    close = float(closes.iloc[-1])
+    before = float(closes.iloc[-2]) if len(closes) > 1 else close
+    asof = dates.iloc[-1]
+    latest = clock.last_close(now).date()
+    if q and asof < latest:
+        # The store has not caught up with the last session (a symbol just added, say); its close
+        # comes from the feed: the day's close until the feed rolls to the next day, the prior
+        # close after.
+        day_close = q.get("close", math.nan)
+        if day_close == day_close and day_close > 0:
+            close, before = day_close, q["prev"]
+        elif q["prev"] == q["prev"] and q["prev"] > 0:
+            close, before = q["prev"], close
+        asof = latest
+    ext = None
+    if q and abs(q["last"] - close) > 1e-9:
+        pre = now.date() > asof and now.weekday() < 5 and now.time() < pd.Timestamp("09:30").time()
+        ext = ("Pre-market" if pre else "After hours", q["last"])
+    return close, before, f"At close {asof:%b %-d}", ext
+
+
 def with_live(series: pd.Series, symbol: str, live: dict[str, dict] | None = None) -> pd.Series:
     """A date-indexed close series with today's live mark as its last point, during the regular
     session only: outside it the official close stands, so an after-hours quote never

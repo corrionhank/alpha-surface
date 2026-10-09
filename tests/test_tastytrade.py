@@ -118,3 +118,13 @@ def test_not_configured_falls_back(monkeypatch):
     assert chains.default_source() == "synthetic"
     assert chains.source_label("synthetic") == "sample data"
     assert chains.source_label("yfinance") == "yfinance, delayed"
+
+
+def test_strike_band_scales_with_tenor():
+    from alphasurface.collector.chains import TastytradeChains
+
+    band = TastytradeChains().band
+    assert band(0) == band(1) == 0.08
+    assert 0.11 < band(7) < 0.13
+    assert 0.24 < band(30) < 0.26
+    assert band(180) == band(365) == 0.60

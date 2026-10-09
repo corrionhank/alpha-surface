@@ -14,3 +14,9 @@ APP = [
 ]
 DEFAULT = "overview"
 STEMS = {stem for stem, _ in APP}
+
+
+def page(stem: str) -> str:
+    """A page script's path as st.Page and st.switch_page take it: relative to the entry script,
+    alphasurface/app.py."""
+    return f"present/{stem}.py"

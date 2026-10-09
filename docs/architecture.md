@@ -91,8 +91,12 @@ at the scheduled cadence.
   jitter, 4 tries at most. A failed sign-in is never retried until the process restarts, since
   repeated failures block the IP for about 8 hours.
 - DXLink: one streamer per process with a cache of the latest Quote, Trade and Summary per
-  symbol. A request subscribes only to symbols not yet cached, in batches of 500, capped at 4,000
+  symbol. A request subscribes only to symbols not yet cached, in batches of 500, capped at 6,000
   symbols (DXLink allows 5 sessions and 25,000 subscriptions).
+- Option chains from tastytrade subscribe only strikes inside a band around spot that widens with
+  time to expiry (`TastytradeChains.band`: about 2.5 sigma at 35% vol, 8% to 60%), so weeklies
+  with dense strikes stay small and long expiries still reach the 10-delta wings. A full 1-year
+  MSFT surface is about 1,250 contracts. Yahoo returns every listed strike in one request.
 - Streamlit: `st.cache_data` with short TTLs (quotes 15 to 20 s, bars and metrics minutes);
   the Charts view refreshes every 30 s while the market is open.
 - DuckDB: the shared page connection refreshes its views at most every 30 s under a lock, so

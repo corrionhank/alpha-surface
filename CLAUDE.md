@@ -26,7 +26,8 @@ src/alphasurface/
   storage/          writer, reader, reference tables, DuckDB views
   derive/           Black-Scholes, implied vol, contract metrics, market state, scanner rules,
                     simulation, sentiment, pot odds
-  present/          streamlit_app.py (entry), one module per page, theme, header, data access
+  app.py            Streamlit entry (at the package root so every module hot-reloads)
+  present/          one module per page, theme, header, data access
 tests/              pytest, no network (conftest blocks tastytrade and Yahoo)
 studies/            standalone research, run with make study
 config/             symbols.toml, *.example.toml (config.toml and scans.toml are gitignored)

@@ -438,6 +438,7 @@ def quotes(symbols: list[str]) -> dict[str, dict]:
             out[sym] = {
                 "last": mark,
                 "prev": row["prev_close"],
+                "close": row["day_close"],  # the feed's current day; NaN once it rolls over
                 "bid": row["bid"],
                 "ask": row["ask"],
                 "at": now,

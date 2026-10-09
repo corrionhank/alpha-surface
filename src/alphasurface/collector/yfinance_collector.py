@@ -1,6 +1,11 @@
 """yfinance OHLCV collector. Pulls 1h/1d bars for the tracked universe into Parquet.
 
-Run: python -m alphasurface.collector.yfinance_collector --interval 1d --period 10y
+Daily bars default to every symbol a page reads (Config.universe(): index ETFs, single names,
+the vol complex, cross-asset vol, macro ETFs, Treasury yields, futures), so the scheduled top-up
+keeps every page current. Hourly bars default to the index ETFs and single names, the only
+series pages read intraday.
+
+Run: python -m alphasurface.collector.yfinance_collector --interval 1d --period 5d
 """
 
 from __future__ import annotations
@@ -42,6 +47,12 @@ def fetch_ohlcv(symbol: str, interval: str, period: str) -> pd.DataFrame:
     return out.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
 
 
+def default_symbols(config: Config, interval: str) -> list[str]:
+    if interval == "1d":
+        return config.universe()
+    return list(dict.fromkeys(config.equities() + config.single_names()))
+
+
 def collect(
     config: Config,
     symbols: list[str] | None = None,
@@ -49,7 +60,7 @@ def collect(
     period: str | None = None,
 ) -> dict[str, int]:
     """Fetch each symbol, write once, refresh views. Returns rows per symbol."""
-    symbols = symbols or config.equities()
+    symbols = symbols or default_symbols(config, interval)
     period = period or DEFAULT_PERIOD.get(interval, "1mo")
 
     written: dict[str, int] = {}

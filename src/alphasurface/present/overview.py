@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 from html import escape
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -157,7 +158,7 @@ LIVE = (
 )
 
 
-def closes(symbol: str) -> pd.Series:
+def closes(symbol: str, live: dict[str, dict]) -> pd.Series:
     """Daily closes indexed by NY trading date, with today's live mark as the last point while
     the session is open (present.data.with_live)."""
     df = daily(symbol)
@@ -183,29 +184,6 @@ def reference(table: str) -> ref.Fetched:
     }
     fetch, by = fetchers[table]
     return ref.refresh(table, fetch, config=data.config, by=by)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def name_metrics() -> pd.DataFrame:
-    """Latest tastytrade market metrics per name. Read from the store; when the last pull is
-    older than 15 minutes and credentials are set, pulled again through the gateway (which
-    stores it), so page views add to the IV history without hammering the API."""
-    from alphasurface.collector import feed, tasty
-    from alphasurface.collector.tastytrade_collector import SINGLE_NAMES
-    from alphasurface.storage import reference
-
-    stored = reference.latest("market_metrics", data.config)
-    stale = stored.empty or (
-        pd.Timestamp.now(tz="UTC") - pd.Timestamp(stored["collected_at"].max())
-    ) > pd.Timedelta(minutes=15)
-    if stale and tasty.ready():
-        try:
-            return feed.metrics(
-                list(dict.fromkeys(data.config.equities() + SINGLE_NAMES)), config=data.config
-            )[0]
-        except Exception:  # the page keeps the stored copy
-            pass
-    return stored
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -255,37 +233,69 @@ def html(markup: str) -> None:
 
 # --- Inputs ---------------------------------------------------------------------------------
 
+
+def inputs(live: dict[str, dict]) -> SimpleNamespace:
+    """Every series and reading the KPI strip and panels use, with live marks folded in."""
+    c = {s: closes(s, live) for s in ["SPY", "QQQ", "TLT", "IEF", "HYG", *VOL.values()]}
+    spy, qqq, vix, vix3m = c["SPY"], c["QQQ"], c["^VIX"], c["^VIX3M"]
+    vix_last = float(vix.iloc[-1])
+    vrp_series = iv_panel.iv_minus_rv(vix, spy)
+    vrp_now = float(vrp_series.iloc[-1]) if len(vrp_series) else math.nan
+    vxn_rv = (
+        iv_panel.iv_minus_rv(c["^VXN"], qqq)
+        if len(qqq) and len(c["^VXN"])
+        else pd.Series(dtype=float)
+    )
+    term = pd.concat({"front": vix, "back": vix3m}, axis=1).dropna()
+    slope = ms.term_slope(*term.iloc[-1]) if len(term) else math.nan
+    dist200 = ms.sma_distance(spy, 200)
+    move_pct, move_src = iv_panel.priced_move_today(c["^VIX1D"], vix)
+    fg = sentiment.fear_greed(spy, vix, vix3m, c["TLT"], c["HYG"], c["IEF"])
+    return SimpleNamespace(
+        c=c,
+        spy=spy,
+        qqq=qqq,
+        vix=vix,
+        vix3m=vix3m,
+        vix_last=vix_last,
+        vrp_series=vrp_series,
+        vrp_now=vrp_now,
+        vxn_rv=vxn_rv,
+        ratio=term["back"] / term["front"],
+        slope=slope,
+        flag=ms.regime(vix_last, slope, vrp_now),
+        dist200=dist200,
+        d200=float(dist200.iloc[-1]),
+        move_pct=move_pct,
+        move_src=move_src,
+        fg=fg,
+        fg_week=float(fg.history.iloc[-6]) if len(fg.history) > 5 else math.nan,
+        vol=iv_panel.panel({name: c[sym] for name, sym in VOL.items()}),
+    )
+
+
 data.top_up(tuple(SYMBOLS))  # keep the stored daily bars current, in the background
-live = data.quotes(LIVE) if data.market_open() else {}
 stored_daily = set(store_bars())
 if "SPY" not in stored_daily or "^VIX" not in stored_daily:
-    st.warning("No SPY or ^VIX daily data. Seed them first:")
-    st.code(
-        "python -m alphasurface.collector.yfinance_collector --interval 1d --period 10y "
-        "--symbols 'SPY,QQQ,^VIX,^VIX3M'",
-        language="bash",
+    # First run on an empty store: backfill the core series, waiting a bounded time.
+    with st.spinner("Loading SPY and VIX history..."):
+        data.ensure_daily(("SPY", "QQQ", "^VIX", "^VIX3M"), timeout=20)
+    store_bars.clear()
+    stored_daily = set(store_bars())
+if "SPY" not in stored_daily or "^VIX" not in stored_daily:
+    theme.intro("Dashboard", eyebrow="Markets")
+    st.markdown(
+        '<p style="font-size:13px;color:var(--fg-subtle)">SPY and VIX history is still loading. '
+        "Refresh in a minute.</p>",
+        unsafe_allow_html=True,
     )
     st.stop()
 
-c = {s: closes(s) for s in ["SPY", "QQQ", "TLT", "IEF", "HYG", *VOL.values()]}
-spy, qqq, vix, vix3m = c["SPY"], c["QQQ"], c["^VIX"], c["^VIX3M"]
-
-vix_last = float(vix.iloc[-1])
-vrp_series = iv_panel.iv_minus_rv(vix, spy)
-vrp_now = float(vrp_series.iloc[-1]) if len(vrp_series) else math.nan
-vxn_rv = (
-    iv_panel.iv_minus_rv(c["^VXN"], qqq) if len(qqq) and len(c["^VXN"]) else pd.Series(dtype=float)
-)
-term = pd.concat({"front": vix, "back": vix3m}, axis=1).dropna()
-ratio = term["back"] / term["front"]
-slope = ms.term_slope(*term.iloc[-1]) if len(term) else math.nan
-flag = ms.regime(vix_last, slope, vrp_now)
-dist200 = ms.sma_distance(spy, 200)
-d200 = float(dist200.iloc[-1])
-move_pct, move_src = iv_panel.priced_move_today(c["^VIX1D"], vix)
-fg = sentiment.fear_greed(spy, vix, vix3m, c["TLT"], c["HYG"], c["IEF"])
-fg_week = float(fg.history.iloc[-6]) if len(fg.history) > 5 else math.nan
-vol = iv_panel.panel({name: c[sym] for name, sym in VOL.items()})
+live = data.quotes(LIVE) if data.market_open() else {}
+S = inputs(live)
+st.session_state["ov_inputs"] = (live, S)
+c, spy, qqq, vix, vix3m = S.c, S.spy, S.qqq, S.vix, S.vix3m
+move_pct, fg, fg_week, flag, vol = S.move_pct, S.fg, S.fg_week, S.flag, S.vol
 
 theme.intro(
     "Dashboard",
@@ -315,7 +325,7 @@ def price_kpi(sym: str, s: pd.Series) -> str:
     )
 
 
-def vol_kpi(name: str) -> str:
+def vol_kpi(vol: pd.DataFrame, name: str) -> str:
     if name not in vol.index:
         return kpi(name, "n/a", "not stored")
     r = vol.loc[name]
@@ -335,41 +345,65 @@ def rv_gap_kpi(label: str, gap: pd.Series, against: str) -> str:
     )
 
 
-spot = float(spy.iloc[-1])
-regime_sub = f"VIX {vix_last:.1f}, term {slope:+.0%}" if slope == slope else f"VIX {vix_last:.1f}"
-term_sub = (
-    ("VIX3M over VIX, contango" if slope >= 0 else "VIX3M over VIX, backwardation")
-    if slope == slope
-    else "needs ^VIX3M"
-)
-tiles = [
-    price_kpi("SPY", spy),
-    price_kpi("QQQ", qqq),
-    vol_kpi("VIX"),
-    vol_kpi("VXN"),
-    kpi(
-        "Priced move today",
-        f"{move_pct:.2f}%",
-        f"1 SD, about {spot * move_pct / 100:,.2f} on SPY, from {move_src}",
-    ),
-    kpi("Regime", flag.replace("_", " ").capitalize(), regime_sub, theme.status_color(flag)),
-    kpi(
-        "Fear and greed",
-        f"{fg.score:.0f}",
-        f"{fg.label}, {fg_week:.0f} a week ago" if fg_week == fg_week else fg.label,
-    ),
-    rv_gap_kpi("SPY implied minus realized", vrp_series, "VIX"),
-    rv_gap_kpi("QQQ implied minus realized", vxn_rv, "VXN"),
-    kpi("Term structure", f"{float(ratio.iloc[-1]):.2f}" if len(ratio) else "n/a", term_sub),
-    kpi(
-        "SPY vs 200-day",
-        f"{d200:+.1f}%",
-        f"{f_pct(ms.percentile_rank(dist200, d200), 0, False)} pctile, "
-        f"{float(ms.drawdown(spy).iloc[-1]):.1f}% off 52w high",
-    ),
-    vol_kpi("SKEW") if "SKEW" in vol.index else vol_kpi("VVIX"),
-]
-st.markdown(f'<div class="kpi-grid">{"".join(tiles)}</div>', unsafe_allow_html=True)
+@st.fragment(run_every=30 if data.market_open() else None)
+def kpi_strip() -> None:
+    """The KPI band. In the session it reruns alone every 30 seconds with fresh marks; the
+    first run reuses the page's inputs."""
+    live, k = st.session_state["ov_inputs"]
+    fresh = data.quotes(LIVE) if data.market_open() else {}
+    if fresh != live:
+        k = inputs(fresh)
+        st.session_state["ov_inputs"] = (fresh, k)
+    spot = float(k.spy.iloc[-1])
+    slope = k.slope
+    regime_sub = (
+        f"VIX {k.vix_last:.1f}, term {slope:+.0%}" if slope == slope else f"VIX {k.vix_last:.1f}"
+    )
+    term_sub = (
+        ("VIX3M over VIX, contango" if slope >= 0 else "VIX3M over VIX, backwardation")
+        if slope == slope
+        else "needs ^VIX3M"
+    )
+    tiles = [
+        price_kpi("SPY", k.spy),
+        price_kpi("QQQ", k.qqq),
+        vol_kpi(k.vol, "VIX"),
+        vol_kpi(k.vol, "VXN"),
+        kpi(
+            "Priced move today",
+            f"{k.move_pct:.2f}%",
+            f"1 SD, about {spot * k.move_pct / 100:,.2f} on SPY, from {k.move_src}",
+        ),
+        kpi(
+            "Regime",
+            k.flag.replace("_", " ").capitalize(),
+            regime_sub,
+            theme.status_color(k.flag),
+        ),
+        kpi(
+            "Fear and greed",
+            f"{k.fg.score:.0f}",
+            f"{k.fg.label}, {k.fg_week:.0f} a week ago" if k.fg_week == k.fg_week else k.fg.label,
+        ),
+        rv_gap_kpi("SPY implied minus realized", k.vrp_series, "VIX"),
+        rv_gap_kpi("QQQ implied minus realized", k.vxn_rv, "VXN"),
+        kpi(
+            "Term structure",
+            f"{float(k.ratio.iloc[-1]):.2f}" if len(k.ratio) else "n/a",
+            term_sub,
+        ),
+        kpi(
+            "SPY vs 200-day",
+            f"{k.d200:+.1f}%",
+            f"{f_pct(ms.percentile_rank(k.dist200, k.d200), 0, False)} pctile, "
+            f"{float(ms.drawdown(k.spy).iloc[-1]):.1f}% off 52w high",
+        ),
+        vol_kpi(k.vol, "SKEW") if "SKEW" in k.vol.index else vol_kpi(k.vol, "VVIX"),
+    ]
+    st.markdown(f'<div class="kpi-grid">{"".join(tiles)}</div>', unsafe_allow_html=True)
+
+
+kpi_strip()
 
 # --- Layout: main grid and right rail -------------------------------------------------------
 
@@ -398,7 +432,8 @@ with main:
             )
 
     # Implied versus realized, name by name: a dumbbell per name on one vol axis
-    mm = name_metrics()
+    # One row per name, missing or stale names pulled live in one call (present.data).
+    mm = data.metrics_table(tuple(data.config.metrics_universe()))
     with theme.card("names"):
         asof = mm["collected_at"].max() if not mm.empty else None
         head(
@@ -507,11 +542,10 @@ with main:
         st.markdown('<div class="panel-rule"></div>', unsafe_allow_html=True)
         hist = daily(symbol).tail(90)
         cone_spot = float(hist["close"].iloc[-1])
-        implied = {"SPY": vix, "QQQ": c["^VXN"]}.get(symbol)
-        if implied is not None and len(implied):
-            iv, iv_src = float(implied.iloc[-1]) / 100, "VIX" if symbol == "SPY" else "VXN"
-        else:
-            iv, iv_src = float(ms.rolling_vol(closes(symbol)).iloc[-1]) / 100, "21d realized vol"
+        iv, iv_src = data.implied_vol(symbol, horizon)
+        if iv != iv:
+            iv = float(ms.rolling_vol(closes(symbol, live)).iloc[-1]) / 100
+            iv_src = "21d realized vol"
         if np.isnan(iv):
             st.info(f"Not enough {symbol} history.")
         else:
@@ -608,7 +642,7 @@ with main:
 
     wl_rows = {}
     for sym in universe + [m for m in MACRO if m in stored_daily]:
-        s = closes(sym).tail(300)  # covers the longest window below; skips decades of rolling
+        s = closes(sym, live).tail(300)  # covers the longest window below; skips decades of rolling
         if len(s) < 2:
             continue
         rvs = ms.rolling_vol(s)

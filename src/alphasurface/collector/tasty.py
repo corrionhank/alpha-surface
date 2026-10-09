@@ -44,7 +44,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 CONCURRENCY = 4
 MAX_TRIES = 4
-MAX_SYMBOLS = 4000  # x3 event types stays far under DXLink's 25,000 per session
+MAX_SYMBOLS = 6000  # x3 event types stays under DXLink's 25,000 per session; a 1Y surface fits
 SUB_BATCH = 500  # symbols per subscription message, so no message is "too long"
 
 

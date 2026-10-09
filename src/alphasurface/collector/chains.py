@@ -138,14 +138,26 @@ class TastytradeChains:
 
     Strikes and streamer symbols come from the nested chain endpoint (cached an hour); bid, ask,
     last trade, day volume, open interest and prior close from the DXLink streamer. Only strikes
-    within `band` of spot are subscribed, so a chain is a few hundred symbols rather than the
-    whole board, and without a live spot there is no band, so no chain. Contracts still silent
+    within band(days) of spot are subscribed, about three standard moves for the expiry, so a chain
+    is a few hundred symbols rather than the whole board, and without a live spot there is no
+    band, so no chain. Contracts still silent
     after the first wait get a second one; the share that quoted is frame.attrs["coverage"].
     Quotes are as live as the account's feed (collector.feed.feed_label()).
     """
 
     name = "tastytrade"
-    band = 0.25  # strikes within +-25% of spot
+    band_vol = 0.35  # a generous annual vol for sizing the band, not a model input
+    band_floor, band_cap = 0.08, 0.60
+
+    def band(self, days: float) -> float:
+        """Strike band around spot for an expiry `days` out, in log terms about 2.5 sigma at
+        band_vol: wide enough for the 10-delta wings, which sit near 1.3 sigma plus drift. A weekly
+        takes about +-12%, a month 25%, six months and longer the 60% cap. Near expiries list the
+        densest strikes and get the narrowest band, which keeps a full surface inside the
+        streamer's subscription limits (tasty.MAX_SYMBOLS)."""
+        return min(
+            max(2.5 * self.band_vol * math.sqrt(max(days, 1) / 365), self.band_floor), self.band_cap
+        )
 
     def expirations(self, symbol: str) -> list[str]:
         from alphasurface.collector import tasty
@@ -189,12 +201,14 @@ class TastytradeChains:
         wanted = [e for e in (expirations or sorted(listed)[:8]) if e in listed]
 
         contracts = []  # (expiry, strike, kind, streamer symbol)
+        today = pd.Timestamp.now(tz="America/New_York").date()
         for expiry in wanted:
             # SPX-style roots list the same date twice (AM and PM settled); keep PM when both exist.
             entries = sorted(listed[expiry], key=lambda e: e.settlement_type != "PM")
+            band = self.band((pd.Timestamp(expiry).date() - today).days)
             for s in entries[0].strikes:
                 k = float(s.strike_price)
-                if abs(k / spot - 1) > self.band:
+                if abs(k / spot - 1) > band:
                     continue
                 contracts += [
                     (expiry, k, "call", s.call_streamer_symbol),

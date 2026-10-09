@@ -1,6 +1,9 @@
 """Streamlit entrypoint. Run:
 
-    streamlit run src/alphasurface/present/streamlit_app.py
+    streamlit run src/alphasurface/app.py
+
+It sits at the package root, not in present/, because Streamlit reloads only modules under the
+entry script's folder: from here an edit to collector, derive, storage or clock reloads too.
 
 Signed out, you get the landing and sign-in pages. Every app page stays registered either way,
 because a URL Streamlit does not know raises its "page not found" dialog; signed out, an app page
@@ -22,20 +25,20 @@ theme.apply()
 
 signed_in = auth.user() is not None
 
-# Page scripts resolve relative to this file's directory. The overview owns "/" once signed in;
-# before that the landing page does.
+# Page scripts resolve relative to this file's directory (routes.page). The overview owns "/"
+# once signed in; before that the landing page does.
 app = [
-    st.Page(f"{stem}.py", title=title, default=signed_in and stem == routes.DEFAULT)
+    st.Page(routes.page(stem), title=title, default=signed_in and stem == routes.DEFAULT)
     for stem, title in routes.APP
 ]
 landing = st.Page(
-    "landing.py",
+    routes.page("landing"),
     title="Alpha Surface",
     url_path="home" if signed_in else None,
     visibility="hidden",
     default=not signed_in,
 )
-login = st.Page("login.py", title="Sign in", url_path="login", visibility="hidden")
+login = st.Page(routes.page("login"), title="Sign in", url_path="login", visibility="hidden")
 # Signed out, the landing page owns "/", so a stale /home link would hit "page not found".
 home_alias = (
     []
@@ -58,7 +61,7 @@ if on_app_page and not signed_in:
     st.switch_page(login, query_params={"next": current.url_path})
 
 if on_app_page:
-    st.logo(str(HERE / "assets" / "wordmark.svg"), size="large")
+    st.logo(str(HERE / "present" / "assets" / "wordmark.svg"), size="large")
     header.bar()
 
 current.run()

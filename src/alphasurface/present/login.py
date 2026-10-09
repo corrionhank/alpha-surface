@@ -8,7 +8,7 @@ import streamlit as st
 from alphasurface.present import auth, routes, theme
 
 nxt = st.query_params.get("next", routes.DEFAULT)
-target = f"{nxt if nxt in routes.STEMS else routes.DEFAULT}.py"
+target = routes.page(nxt if nxt in routes.STEMS else routes.DEFAULT)
 if auth.user():
     st.switch_page(target)
 

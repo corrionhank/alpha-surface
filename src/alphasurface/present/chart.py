@@ -44,8 +44,9 @@ def _save(symbols: list[str]) -> None:
         st.session_state["chart_symbol"] = st.session_state["watchlist"][0]
 
 
-def _valid(sym: str) -> bool:
-    return bool(sym) and not data.bars(sym, "1d").empty
+def _resolve(sym: str) -> str | None:
+    """The stored spelling of a symbol some provider knows, without backfilling anything."""
+    return data.resolve(sym) if sym else None
 
 
 def _apply(action: dict) -> None:
@@ -56,25 +57,27 @@ def _apply(action: dict) -> None:
     if kind == "open" and i >= 0:
         st.session_state["chart_symbol"] = sym
     elif kind == "add":
-        new = data.clean(sym)
-        if new in symbols:
-            st.session_state["chart_symbol"] = new
-        elif _valid(new):
-            _save([*symbols, new])
+        typed = data.clean(sym)
+        new = _resolve(typed)
+        if new is None:
+            st.session_state["wl_error"] = f"No such symbol: {typed}."
+        elif new in symbols:
             st.session_state["chart_symbol"] = new
         else:
-            st.session_state["wl_error"] = f"No data for {new}."
+            _save([*symbols, new])
+            st.session_state["chart_symbol"] = new
     elif kind == "replace" and i >= 0:
-        new = data.clean(action.get("to", ""))
-        if new in symbols:
+        typed = data.clean(action.get("to", ""))
+        new = _resolve(typed)
+        if new is None:
+            st.session_state["wl_error"] = f"No such symbol: {typed}."
+        elif new in symbols:
             st.session_state["wl_error"] = f"{new} is already on the list."
-        elif _valid(new):
+        else:
             symbols[i] = new
             if st.session_state["chart_symbol"] == sym:
                 st.session_state["chart_symbol"] = new
             _save(symbols)
-        else:
-            st.session_state["wl_error"] = f"No data for {new}."
     elif kind == "remove" and i >= 0 and len(symbols) > 1:
         _save([s for s in symbols if s != sym])
     elif kind in ("top", "up", "down") and i >= 0:
@@ -201,32 +204,7 @@ def _change(px: float, ref: float) -> str:
     return f'<span class="chg {"up" if chg >= 0 else "down"}">{chg:+,.2f} ({chg / ref:+.2%})</span>'
 
 
-def _price(
-    daily: pd.DataFrame, q: dict | None
-) -> tuple[float, float, str, tuple[str, float] | None]:
-    """(price, reference, label, extended): the live mark against the prior close during the
-    session; outside it the official close against the close before, with any pre-market or
-    after-hours mark beside it, so an extended-hours move never reads as the day's change."""
-    now = pd.Timestamp.now(tz=ET)
-    close = float(daily["close"].iloc[-1])
-    before = float(daily["close"].iloc[-2]) if len(daily) > 1 else close
-    if q and data.market_open():
-        prev = q["prev"] if q["prev"] == q["prev"] else before
-        feed = data.feed_label() if hasattr(data, "feed_label") else "Live"
-        return q["last"], prev, f"{feed or 'Live'}, {now:%-I:%M %p} ET", None
-    asof = daily["ts"].iloc[-1].tz_convert(ET)
-    ext = None
-    if q and abs(q["last"] - close) > 1e-9:
-        ext = (
-            "Pre-market" if now.date() > asof.date() and now.hour < 10 else "After hours",
-            q["last"],
-        )
-    return close, before, f"At close {asof:%b %-d}", ext
-
-
-def _quote_head(
-    sym: str, name: str, price: tuple[float, float, str, tuple[str, float] | None]
-) -> str:
+def _quote_head(sym: str, name: str, price: data.PriceView) -> str:
     px, ref, label, ext = price
     extended = ""
     if ext:
@@ -276,7 +254,10 @@ def _stats(sym: str, last: float, prev: float, daily: pd.DataFrame) -> str:
             ("Beta", _num(m.get("beta"))),
             ("Correlation to SPY, 3M", _num(m.get("corr_spy_3m"))),
             ("Market cap", _short(m.get("market_cap"))),
-            ("P/E", _num(m.get("price_earnings_ratio"))),
+            (
+                "P/E",
+                _num(pe) if (pe := m.get("price_earnings_ratio")) and pe > 0 else "",
+            ),  # 0 means none
             (
                 "Earnings",
                 "" if earn is None or pd.isna(earn) else f"{pd.Timestamp(earn):%b %-d, %Y}",
@@ -308,9 +289,9 @@ def _chart(sym: str) -> None:
         )
         return
     q = data.quote(sym)
-    price = _price(daily, q)
+    price = data.price_view(daily, q)
     last, prev = price[0], price[1]
-    name = data.describe(sym) if hasattr(data, "describe") else ""
+    name = data.describe(sym)
     head, ctl = st.columns([3, 2], vertical_alignment="bottom")
     head.markdown(_quote_head(sym, name, price), unsafe_allow_html=True)
     with ctl.container(key="chart-range"):

@@ -18,7 +18,8 @@ make check            # lint, type check, tests
 - Before a pull request: `make lint` and `make test` pass, and new behavior has a test. Tests
   never touch the network: `tests/conftest.py` blocks tastytrade and Yahoo. A test that must hit a
   real provider is marked `@pytest.mark.live` and runs only with `pytest -m live`.
-- When behavior changes, update the doc that describes it and add a line to `CHANGELOG.md`.
+- When behavior changes, update the doc that describes it and add a line to `CHANGELOG.md`
+  under Unreleased. Take finished items off `TODO.md`.
 
 ## Rules
 

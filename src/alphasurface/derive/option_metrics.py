@@ -74,6 +74,7 @@ class Contract:
     vega: float  # per vol point
     theta: float  # per calendar day
     rho: float  # per 1% of rate
+    iv_from: str = ""  # "" when solved from this contract's price; "call" or "put" when borrowed
 
     @property
     def stale(self) -> bool:
@@ -81,9 +82,24 @@ class Contract:
 
 
 def contract(
-    S: float, K: float, dte: int, r: float, q: float, kind: str, bid, ask, last
+    S: float,
+    K: float,
+    dte: int,
+    r: float,
+    q: float,
+    kind: str,
+    bid,
+    ask,
+    last,
+    iv_override: float = NAN,
+    iv_from: str = "",
 ) -> Contract:
-    """Every per-contract number the chain page shows, from one quote."""
+    """Every per-contract number the chain page shows, from one quote.
+
+    When this price does not solve for an IV (deep in the money, where a wide quote often sits
+    under the no-arbitrage bound) and `iv_override` is given, the Greeks and probability use it:
+    the other side's IV at the same strike, which put-call parity makes the same number.
+    `iv_from` names that side and is kept on the result so a page can say so."""
     S, K, dte = float(S), float(K), int(dte)
     premium, quote = mark(bid, ask, last)
     two_sided = quote == QUOTE_MID
@@ -93,6 +109,10 @@ def contract(
     intr = intrinsic(S, K, kind)
     extr = premium - intr
     iv = implied_vol(premium, S, K, T, r, q, kind)  # NaN for no price, no time, or out of bounds
+    if not iv > 0 and iv_override > 0:
+        iv = float(iv_override)
+    else:
+        iv_from = ""
 
     if iv > 0:
         g = greeks(S, K, T, r, iv, q, kind)
@@ -124,6 +144,7 @@ def contract(
         vega=vega,
         theta=theta,
         rho=rho,
+        iv_from=iv_from,
     )
 
 
@@ -225,19 +246,40 @@ def seller_yields(premium: float, S: float, K: float, dte: int, kind: str) -> li
 
 
 _SIDE_FIELDS = ["bid", "mark", "ask", "iv", "delta", "volume", "open_interest"]
+OTHER = {"call": "put", "put": "call"}
 
 
 def straddle(board: pd.DataFrame, S: float, dte: int, r: float, q: float) -> pd.DataFrame:
     """One expiry as a straddle view: a row per strike, call fields and put fields side by side,
-    columns named call_<field>, strike, put_<field>. IV and delta are ours, solved per contract."""
+    columns named call_<field>, strike, put_<field>. IV and delta are ours, solved per contract.
+
+    A contract whose price does not solve for an IV takes the other side's solved IV at the same
+    strike (see contract()); <side>_iv_from names the side it came from, "" when its own."""
+    quotes = {
+        kind: board[board["kind"] == kind].drop_duplicates("strike").set_index("strike")
+        for kind in ("call", "put")
+    }
+    own = {
+        kind: {
+            float(K): contract(S, K, dte, r, q, kind, rec.bid, rec.ask, rec.last)
+            for K, rec in quotes[kind].iterrows()
+        }
+        for kind in quotes
+    }
     sides = {}
-    for kind in ("call", "put"):
+    for kind, contracts in own.items():
         rows = []
-        for rec in board[board["kind"] == kind].itertuples(index=False):
-            c = contract(S, rec.strike, dte, r, q, kind, rec.bid, rec.ask, rec.last)
+        for K, c in contracts.items():
+            twin = own[OTHER[kind]].get(K)
+            if not c.iv > 0 and twin is not None and twin.iv > 0:
+                rec = quotes[kind].loc[K]
+                c = contract(
+                    S, K, dte, r, q, kind, rec.bid, rec.ask, rec.last, twin.iv, OTHER[kind]
+                )
+            rec = quotes[kind].loc[K]
             rows.append(
                 {
-                    "strike": float(rec.strike),
+                    "strike": K,
                     "bid": _num(rec.bid),
                     "mark": c.premium,
                     "ask": _num(rec.ask),
@@ -245,12 +287,23 @@ def straddle(board: pd.DataFrame, S: float, dte: int, r: float, q: float) -> pd.
                     "delta": c.delta,
                     "volume": _num(rec.volume),
                     "open_interest": _num(rec.open_interest),
+                    "iv_from": c.iv_from,
                 }
             )
-        side = pd.DataFrame(rows, columns=["strike", *_SIDE_FIELDS])
-        sides[kind] = side.drop_duplicates("strike").set_index("strike").add_prefix(f"{kind}_")
+        side = pd.DataFrame(rows, columns=["strike", *_SIDE_FIELDS, "iv_from"])
+        sides[kind] = side.set_index("strike").add_prefix(f"{kind}_")
 
     view = sides["call"].join(sides["put"], how="outer").sort_index().reset_index()
+    for kind in ("call", "put"):
+        view[f"{kind}_iv_from"] = view[f"{kind}_iv_from"].fillna("")
     # Mirrored around the strike, prices innermost, both sides still reading bid then ask.
     calls = ["open_interest", "volume", "delta", "iv", "bid", "mark", "ask"]
-    return view[[*(f"call_{f}" for f in calls), "strike", *(f"put_{f}" for f in _SIDE_FIELDS)]]
+    return view[
+        [
+            *(f"call_{f}" for f in calls),
+            "strike",
+            *(f"put_{f}" for f in _SIDE_FIELDS),
+            "call_iv_from",
+            "put_iv_from",
+        ]
+    ]

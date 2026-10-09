@@ -41,11 +41,6 @@ st.markdown(
 )
 
 
-def _stored_rate() -> float:
-    bar = reader.latest_bar(conn, "^IRX", "1d")
-    return float(bar["close"]) if bar is not None else 4.0
-
-
 def _load_defaults() -> None:
     """Put the chosen preset's default filters into the sidebar widgets."""
     f = sc.PRESETS[st.session_state["preset"]].filters
@@ -91,8 +86,26 @@ with st.sidebar:
     side = st.radio("Side", ["Both", "Calls", "Puts"], horizontal=True, key="f_side")
 
     st.header("Model inputs")
-    rate = st.number_input("Risk-free rate (%)", value=round(_stored_rate(), 2), step=0.25) / 100
-    div = st.number_input("Dividend yield (%)", 0.0, value=0.0, step=0.1) / 100
+    live_rate, rate_src = data.rate_source()
+    rate = (
+        st.number_input(
+            "Risk-free rate (%)",
+            value=round(live_rate * 100, 2),
+            step=0.25,
+            help=f"From {rate_src}.",
+        )
+        / 100
+    )
+    div = (
+        st.number_input(
+            "Dividend yield (%)",
+            0.0,
+            value=0.0,
+            step=0.1,
+            help="One yield for every symbol in the scan. The vehicles tab uses each symbol's own.",
+        )
+        / 100
+    )
 
 symbols = tuple(
     dict.fromkeys(
@@ -326,26 +339,41 @@ with scan_tab:
                 st.caption("ATM IV at the expiry nearest 30 days.")
 
 
-def _defaults_for(symbol: str) -> tuple[float, float, float]:
-    """Spot, implied vol and realized vol defaults from the store, decimals."""
+def _defaults_for(symbol: str) -> tuple[float, float, float, str]:
+    """Spot, implied vol for a month out, realized vol, decimals, and where the IV came from.
+    Spot is the live mark when there is one; the IV comes from present.data.implied_vol."""
     bars = reader.get_ohlcv(conn, symbol, "1d", tail=90)
-    spot = float(bars["close"].iloc[-1]) if not bars.empty else 100.0
-    rv = float(rolling_vol(bars["close"], 21).iloc[-1]) / 100 if len(bars) > 21 else 0.25
-    vix = reader.latest_bar(conn, "^VIX", "1d") if symbol == "SPY" else None
-    iv = float(vix["close"]) / 100 if vix is not None else rv
-    return spot, iv, rv
+    q = data.quote(symbol)
+    spot = q["last"] if q else float(bars["close"].iloc[-1]) if not bars.empty else 100.0
+    rv = float(rolling_vol(bars["close"], 21).iloc[-1]) / 100 if len(bars) > 21 else math.nan
+    iv, src = data.implied_vol(symbol, 30)
+    if iv != iv:
+        iv, src = (rv, "21-day realized vol") if rv == rv else (0.25, "")
+    return spot, iv, rv if rv == rv else iv, src
 
 
 with vehicle_tab:
     a, b, c, d = st.columns(4)
     v_symbol = a.text_input("Symbol", "SPY", key="v_symbol").strip().upper()
-    spot0, iv0, rv0 = _defaults_for(v_symbol)
+    spot0, iv0, rv0, iv_src = _defaults_for(v_symbol)
+    v_div = data.dividend_yield(v_symbol)
     v_spot = b.number_input("Spot", 0.01, value=round(spot0, 2), step=1.0, key=f"v_spot_{v_symbol}")
     v_move = c.number_input("Target move (%)", -50.0, 50.0, 3.0, 0.5) / 100
     v_days = d.number_input("Days to target (trading)", 1, 252, 10)
     e, f_, g, h = st.columns(4)
     v_exp = e.number_input("Option expiry (trading days)", 1, 504, max(21, int(v_days)))
-    v_iv = f_.number_input("Implied vol (%)", 1.0, 300.0, round(iv0 * 100, 1), 0.5) / 100
+    v_iv = (
+        f_.number_input(
+            "Implied vol (%)",
+            1.0,
+            300.0,
+            round(iv0 * 100, 1),
+            0.5,
+            key=f"v_iv_{v_symbol}",
+            help=f"From {iv_src}." if iv_src else None,
+        )
+        / 100
+    )
     v_rv = g.number_input("Simulated vol (%)", 1.0, 300.0, round(rv0 * 100, 1), 0.5) / 100
     v_margin = (
         h.number_input(
@@ -370,7 +398,7 @@ with vehicle_tab:
             int(v_exp),
             v_iv,
             rate,
-            div,
+            v_div,
             margin=v_margin,
             sim_vol=v_rv,
             drift_to_target=to_target,

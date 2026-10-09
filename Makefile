@@ -3,7 +3,7 @@
 
 PY    := $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
 IMAGE ?= ghcr.io/corrionhank/alpha-surface:latest
-APP   := src/alphasurface/present/streamlit_app.py
+APP   := src/alphasurface/app.py
 ARGS  ?=
 
 .DEFAULT_GOAL := help

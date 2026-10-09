@@ -1,6 +1,6 @@
 [project]
 name = "alpha-surface"
-version = "0.1.0"
+version = "0.2.0"
 description = "Alpha Surface: options and volatility analytics on live tastytrade data. Implied vs realized vol, option chains, a screener, stored for backtests."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -91,7 +91,7 @@ markers = [
 [tool.coverage.run]
 source = ["src"]
 omit = [
-    "*/present/streamlit_app.py",   # Streamlit entrypoint: navigation wiring only
+    "*/alphasurface/app.py",        # Streamlit entrypoint: navigation wiring only
 ]
 
 [tool.coverage.report]

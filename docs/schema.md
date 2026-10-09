@@ -15,6 +15,11 @@ and is stored as it was returned (`docs/architecture.md`, data flow).
 | `etf_holdings` | Yahoo | day partitions, one file per pull | append | `storage.reference` |
 | `news` | Yahoo search, Finnhub | day partitions, one file per pull | append | `storage.reference` |
 | `econ_calendar` | Yahoo, FRED fallback | day partitions, one file per pull | append | `storage.reference` |
+| `instruments` | tastytrade | day partitions, one file per pull | append | `storage.reference` |
+| `fundamentals` | Yahoo | day partitions, one file per pull | append | `storage.reference` |
+| `financials` | Yahoo | day partitions, one file per pull | append | `storage.reference` |
+| `earnings` | Yahoo | day partitions, one file per pull | append | `storage.reference` |
+| `macro_series` | FRED | day partitions, one file per pull | append | `storage.reference` |
 
 Day partitions are `year=Y/month=M/day=D/`; files are named `<HHMMSSffffff>-<random id>.parquet`
 and written to a temp name, then renamed, so a reader never sees half a file and two writers
@@ -22,19 +27,23 @@ never share one. A retried pull can leave the same rows twice; reads keep one pe
 
 ## `ohlcv`
 
-Daily (`1d`) and hourly (`1h`) bars. The VIX family is stored here with Yahoo's caret (`^VIX`).
+Daily (`1d`), hourly (`1h`) and 5-minute (`5m`) bars. Intraday bars come from tastytrade candles
+first (at most 5 sessions of `5m` and 30 of `1h` per pull), Yahoo otherwise; daily history is
+Yahoo, topped up live. Indices keep Yahoo's caret (`^VIX`, `^GSPC`); `alphasurface.symbols` maps
+every other spelling to this one.
 
 | Column | Type | Notes |
 |---|---|---|
 | `ts` | TIMESTAMPTZ | bar open |
 | `symbol` | VARCHAR | Yahoo symbol |
-| `interval` | VARCHAR | `1d` or `1h` |
+| `interval` | VARCHAR | `1d`, `1h` or `5m` |
 | `open`, `high`, `low`, `close` | DOUBLE | |
 | `volume` | BIGINT | |
 
 Key `(ts, symbol, interval)`. Each series is one file, merged under `ohlcv/.lock` and replaced by
-an atomic rename (`storage.writer.write_ohlcv`). `storage.writer.compact_ohlcv` migrates the old
-day-partitioned layout.
+an atomic rename (`storage.writer.write_ohlcv`). A daily bar's `ts` is 00:00 New York on its
+session date, whatever timezone the provider stamped it in, and reads keep one daily bar per
+session, so a series can never hold the same day twice.
 
 ## `option_chain`
 
@@ -81,7 +90,11 @@ Dashboard when its copy is older than 15 minutes.
 | `iv_hv_diff` | vol points | `iv-hv-30-day-difference`, as published |
 | `liquidity_rating`, `beta`, `corr_spy_3m` | | |
 | `earnings_date`, `earnings_time` | date, BMO or AMC | `earnings.expected-report-date` |
-| `dividend_ex_date`, `updated_at` | | |
+| `dividend_ex_date`, `dividend_next_date`, `updated_at` | | |
+| `dividend_yield`, `dividend_rate_per_share` | as published | read through `feed.as_fraction` |
+| `market_cap`, `price_earnings_ratio`, `earnings_per_share` | | |
+| `borrow_rate` | as published | |
+| `liquidity_rank`, `iv_updated_at` | | |
 
 Every vol and rank is stored as a decimal (`tests/test_tastytrade.py`). SPY's `ivx` matched VIX
 on 2026-10-08 (15.4% against 15.41).
@@ -104,8 +117,15 @@ Yields, expense ratios and returns are decimals; Yahoo's percent fields are conv
 | `etf_holdings` | `fund`, `kind` (`holding` or `sector`), `rank`, `key`, `name`, `weight` | 6 h | `fund`, `kind` |
 | `news` | `id`, `title`, `publisher`, `link`, `published`, `related`, `query` | 15 min | `id`, normalized title |
 | `econ_calendar` | `event`, `region`, `time`, `period`, `actual`, `expected`, `last`, `revised`, `key` | 6 h | `event`, `region`, `time` |
+| `instruments` | `symbol`, `description`, `kind` (equity, index, future) | 1 day | `symbol` |
+| `fundamentals` | `symbol`, `name`, `quote_type`, `exchange`, `sector`, `industry`, `currency`, `price`, `prev_close`, `market_cap`, `enterprise_value`, `trailing_pe`, `forward_pe`, `trailing_eps`, `forward_eps`, `dividend_yield`, `beta`, `week52_low`, `week52_high`, margins (`gross_margin`, `operating_margin`, `profit_margin`), `roe`, `roa`, `debt_to_equity`, `free_cash_flow`, `ev_to_ebitda`, `price_to_sales`, `price_to_book`, `revenue_growth`, `earnings_growth`, analyst targets (`target_low`, `target_mean`, `target_median`, `target_high`), `recommendation`, `recommendation_mean`, `analysts`, `rec_strong_buy` to `rec_strong_sell`, `employees`, `website`, `summary` | 12 h | `symbol` |
+| `financials` | `symbol`, `statement` (income, balance, cashflow), `freq` (annual, quarterly), `period_end`, `item` (Yahoo's line item), `value` | 12 h | `symbol`, `statement`, `freq` |
+| `earnings` | `symbol`, `report_date`, `eps_estimate`, `eps_actual`, `surprise`; the next report is kept with a blank actual | 6 h | `symbol`, `report_date` |
+| `macro_series` | `series` (FRED id), `date`, `value` | 12 h | `series`, `date` |
 
-Every row also carries `collected_at` and `source`.
+Every row also carries `collected_at` and `source`. `debt_to_equity` is a ratio; other ratios,
+margins and growth rates are decimals. SEC filings on the Research page are fetched as links and
+never stored.
 
 ## Local state
 

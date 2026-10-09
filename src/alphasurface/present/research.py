@@ -56,6 +56,36 @@ LARGE_CAPS = [
 ]
 STATEMENTS = {"Income statement": "income", "Balance sheet": "balance", "Cash flow": "cashflow"}
 YIELDS = {"3M": "^IRX", "5Y": "^FVX", "10Y": "^TNX", "30Y": "^TYX"}
+UNITS = {"B": "billions", "M": "millions"}
+FORMS = {
+    "10-K": "Annual report",
+    "10-K/A": "Annual report, amended",
+    "10-Q": "Quarterly report",
+    "10-Q/A": "Quarterly report, amended",
+    "8-K": "Current report",
+    "8-K/A": "Current report, amended",
+    "20-F": "Annual report, foreign issuer",
+    "6-K": "Current report, foreign issuer",
+    "DEF 14A": "Proxy statement",
+    "DEFA14A": "Additional proxy materials",
+    "S-1": "Registration statement",
+    "S-3": "Shelf registration",
+    "S-3ASR": "Shelf registration",
+    "S-8": "Employee plan registration",
+    "11-K": "Employee plan annual report",
+    "SD": "Specialized disclosure",
+    "3": "Initial insider holdings",
+    "4": "Insider transaction",
+    "SC 13G": "Ownership over 5%",
+    "SC 13G/A": "Ownership over 5%, amended",
+    "SC 13D": "Active ownership over 5%",
+    "SC 13D/A": "Active ownership over 5%, amended",
+}
+EXTERNAL = (
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>'
+)
 RECS = [
     ("rec_strong_buy", "Strong buy", T["good"], 1.0),
     ("rec_buy", "Buy", T["good"], 0.55),
@@ -266,24 +296,27 @@ def pick_symbol() -> str:
 
 
 def quote_line(sym: str, snap: dict) -> str:
-    q = data.quote(sym)
-    if q:
-        last, prev, src = (
-            q["last"],
-            q["prev"],
-            f"{data.feed_label() if hasattr(data, 'feed_label') else 'Live'}",
-        )
-        when = f"{pd.Timestamp.now(tz=ET):%-I:%M %p} ET"
-    else:
-        last, prev, src = snap.get("price"), snap.get("prev_close"), "Yahoo Finance"
-        when = day(snap.get("collected_at"), "%b %-d") if ok(snap.get("collected_at")) else ""
-    if not ok(last):
-        return ""
-    chg = last - prev if ok(prev) else math.nan
-    move = signed(f"{chg:+,.2f} ({chg / prev:+.2%})", chg) if ok(chg) and prev else ""
+    view = data.price_view(data.bars(sym, "1d"), data.quote(sym))
+    if view is None:
+        if not ok(snap.get("price")):
+            return ""
+        asof = day(snap.get("collected_at"), "%b %-d") if ok(snap.get("collected_at")) else ""
+        view = (snap["price"], snap.get("prev_close"), f"Yahoo Finance {asof}".strip(), None)
+    px, base, label, ext = view
+
+    def move(a, b) -> str:
+        c = a - b if ok(b) else math.nan
+        return signed(f"{c:+,.2f} ({c / b:+.2%})", c) if ok(c) and b else ""
+
+    extended = (
+        f'<div class="fa-ext"><span>{ext[0]}</span><b>{ext[1]:,.2f}</b>{move(ext[1], px)}</div>'
+        if ext
+        else ""
+    )
     return (
-        f'<div class="fa-px"><span class="px">{last:,.2f}</span><span class="chg">{move}</span>'
-        f'<span class="src">{escape(src)}{", " + when if when else ""}</span></div>'
+        f'<div class="fa-quote"><div class="fa-px"><span class="px">{px:,.2f}</span>'
+        f'<span class="chg">{move(px, base)}</span><span class="src">{escape(label)}</span></div>'
+        f"{extended}</div>"
     )
 
 
@@ -404,68 +437,79 @@ def analysts(snap: dict) -> None:
 
 def statements(sym: str, long: pd.DataFrame, asof) -> None:
     with theme.card("fa-statements"):
-        a, b = st.columns([3, 2], vertical_alignment="center")
-        kind = (
-            a.segmented_control(
-                "Statement",
-                list(STATEMENTS),
-                default="Income statement",
-                key="fa_statement",
-                label_visibility="collapsed",
-            )
-            or "Income statement"
+        title, kind_col, freq_col = st.columns([1.3, 2.4, 1.2], vertical_alignment="center")
+        title.markdown(
+            '<span class="panel-title">Financial statements</span>', unsafe_allow_html=True
         )
-        freq = (
-            b.segmented_control(
-                "Period",
-                ["Annual", "Quarterly"],
-                default="Annual",
-                key="fa_freq",
-                label_visibility="collapsed",
+        with kind_col.container(key="fa-ctl-kind"):
+            kind = (
+                st.segmented_control(
+                    "Statement",
+                    list(STATEMENTS),
+                    default="Income statement",
+                    key="fa_statement",
+                    label_visibility="collapsed",
+                )
+                or "Income statement"
             )
-            or "Annual"
-        ).lower()
-        table = fd.wide(long, STATEMENTS[kind], freq) if not long.empty else pd.DataFrame()
-        if table.empty:
-            theme.panel_head(
-                "Financial statements", theme.asof("Yahoo Finance", asof) if asof else ""
-            )
+        with freq_col.container(key="fa-ctl-freq"):
+            freq = (
+                st.segmented_control(
+                    "Period",
+                    ["Annual", "Quarterly"],
+                    default="Annual",
+                    key="fa_freq",
+                    label_visibility="collapsed",
+                )
+                or "Annual"
+            ).lower()
+        html('<div class="panel-rule"></div>')
+        source = theme.asof("Yahoo Finance", asof) if asof is not None else ""
+        full = fd.wide(long, STATEMENTS[kind], freq) if not long.empty else pd.DataFrame()
+        if full.empty:
             empty(f"No {freq} {kind.lower()} for {sym}.")
             return
-        table = table.iloc[:, :5]
-        grow = fd.growth(fd.wide(long, STATEMENTS[kind], freq), fd.LAG[freq]).iloc[:, :5]
+        table = full.iloc[:, :5]  # newest first
+        latest = table.columns[0]
+        yoy = fd.growth(full, fd.LAG[freq])[latest]
         div, unit = fd.scale(table.drop(index=[r for r in table.index if r in fd.PER_SHARE]))
-        theme.panel_head(
-            "Financial statements",
-            f"{theme.asof('Yahoo Finance', asof)}, USD {unit}" if asof else f"USD {unit}",
+        periods = list(reversed(table.columns))  # oldest to newest, the same order as the chart
+        span = "year" if freq == "annual" else "quarter"
+        head = (
+            f"<th>USD {UNITS.get(unit, unit)}</th>"
+            + "".join(f"<th>{pd.Timestamp(c):%b %Y}</th>" for c in periods)
+            + f'<th class="yoy" title="Latest {span} against the same {span} a year earlier">YoY</th>'
         )
-        left, right = st.columns([3, 2], gap="medium")
-        head = "".join(f"<th>{pd.Timestamp(c):%b %Y}</th>" for c in table.columns)
         body = []
         for label, row in table.iterrows():
-            cells = []
-            for col, v in row.items():
-                g = grow.loc[label, col] if label in grow.index else math.nan
-                shown = num(v) if label in fd.PER_SHARE else num(v / div if ok(v) else v, ",.1f")
-                cells.append(
-                    f"<td>{shown}<small>{signed(pct(g, 1, True), g) if ok(g) else ''}</small></td>"
-                )
-            body.append(f"<tr><th>{escape(label)}</th>{''.join(cells)}</tr>")
+            per_share = label in fd.PER_SHARE
+            cells = "".join(
+                f"<td>{num(row[c]) if per_share else num(row[c] / div if ok(row[c]) else row[c], ',.1f')}</td>"
+                for c in periods
+            )
+            g = yoy.get(label, math.nan)
+            name = f"{label}, USD" if per_share else label
+            body.append(
+                f"<tr><th>{escape(name)}</th>{cells}"
+                f'<td class="yoy">{signed(pct(g, 1, True), g) if ok(g) else NA}</td></tr>'
+            )
+        left, right = st.columns([3, 2], gap="large")
         with left:
             html(
-                f'<table class="ftab"><thead><tr><th>{"Fiscal year" if freq == "annual" else "Quarter"} '
-                f"ending</th>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
-                f'<p class="note">Change against the {"prior year" if freq == "annual" else "same quarter a year earlier"}.</p>'
+                f'<table class="ftab"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table>'
+                f'<p class="src">{source}</p>'
             )
         with right:
-            fig = statement_chart(long, freq, div, unit)
+            fig = statement_chart(long, freq, div, unit, height=36 * (len(body) + 1) + 24)
             if fig is None:
                 empty("No revenue or earnings history.")
             else:
                 st.plotly_chart(fig, width="stretch", config=NO_BAR)
 
 
-def statement_chart(long: pd.DataFrame, freq: str, div: float, unit: str) -> go.Figure | None:
+def statement_chart(
+    long: pd.DataFrame, freq: str, div: float, unit: str, height: int = 280
+) -> go.Figure | None:
     income = fd.wide(long, "income", freq)
     cash = fd.wide(long, "cashflow", freq)
     series = [
@@ -489,9 +533,9 @@ def statement_chart(long: pd.DataFrame, freq: str, div: float, unit: str) -> go.
         )
     if not fig.data:
         return None
-    fig = apply_layout(fig, 280)
-    fig.update_layout(barmode="group", bargap=0.25, legend=dict(orientation="h", x=0, y=1.12))
-    fig.update_yaxes(title=f"USD {unit}")
+    fig = apply_layout(fig, max(height, 240))
+    fig.update_layout(barmode="group", bargap=0.3, legend={"orientation": "h", "x": 0, "y": 1.1})
+    fig.update_yaxes(title=None, ticksuffix=unit)
     return fig
 
 
@@ -510,17 +554,10 @@ def earnings_panel(sym: str, state: ref.Fetched) -> None:
         if len(upcoming):
             nxt = upcoming.iloc[-1]
             local = pd.Timestamp(nxt["report_date"]).tz_convert(ET)
-            when = (
-                "before the open"
-                if local.hour < 12
-                else "after the close"
-                if local.hour >= 16
-                else f"{local:%-I:%M %p} ET"
-            )
             html(
                 kv(
                     [
-                        ("Next report", f"{local:%a %b %-d, %Y}, {when}"),
+                        ("Next report", f"{local:%a %b %-d, %Y}"),
                         ("EPS estimate", num(nxt["eps_estimate"])),
                     ]
                 )
@@ -550,9 +587,11 @@ def filings_panel(sym: str) -> None:
             empty("No recent filings.")
             return
         rows = "".join(
-            f'<div class="fl"><span class="d">{day(r.date, "%b %-d, %Y")}</span>'
-            f'<span class="k">{theme.badge_html(r.type, None)}</span>'
-            f'<a href="{escape(r.url)}" target="_blank" rel="noopener">{escape(r.title or r.type)}</a></div>'
+            f'<a class="fl" href="{escape(r.url)}" target="_blank" rel="noopener">'
+            f'<span class="d">{day(r.date, "%b %-d, %Y")}</span>'
+            f'<span class="k">{escape(r.type)}</span>'
+            f'<span class="t">{escape(FORMS.get(str(r.type).upper(), r.title or r.type))}</span>'
+            f'<span class="x">{EXTERNAL}</span></a>'
             for r in df.head(10).itertuples()
         )
         html(f'<div class="flist">{rows}</div>')
@@ -586,7 +625,6 @@ def stock_view(sym: str, snap: dict) -> None:
         html(
             kv(
                 [
-                    ("Market cap", money(snap.get("market_cap"))),
                     ("Enterprise value", money(snap.get("enterprise_value"))),
                     ("P/E, TTM", mult(snap.get("trailing_pe"))),
                     ("P/E, forward", mult(snap.get("forward_pe"))),
@@ -754,8 +792,7 @@ def fundamentals_tab() -> None:
 
 
 def macro_strip() -> None:
-    if not data.config.keys.fred:
-        html('<p class="note">Macro series appear with FRED_API_KEY set.</p>')
+    if not data.config.keys.fred:  # optional source; README covers FRED_API_KEY
         return
     state = macro()
     df = state.frame
@@ -815,65 +852,93 @@ def calendar_panel() -> None:
             empty("Calendar loading.")
             return
         regions = sorted(r for r in ev["region"].dropna().unique() if r)
-        a, b, _ = st.columns([1, 1, 3], vertical_alignment="center")
+        a, b, c = st.columns([1.1, 1.2, 1.3], vertical_alignment="center")
         region = a.selectbox(
             "Region",
-            ["All", *regions],
+            ["All regions", *regions],
             index=(regions.index("US") + 1) if "US" in regions else 0,
             key="ec_region",
             label_visibility="collapsed",
         )
-        only_key = b.toggle("Key releases only", value=False, key="ec_key")
+        view = (
+            b.segmented_control(
+                "View",
+                ["Upcoming", "Released"],
+                default="Upcoming",
+                key="ec_view",
+                label_visibility="collapsed",
+            )
+            or "Upcoming"
+        )
+        only_key = c.toggle("Key releases only", value=False, key="ec_key")
         ev = ev.copy()
-        if region != "All":
+        if region != "All regions":
             ev = ev[ev["region"] == region]
         if only_key:
             ev = ev[ev["key"].astype(bool)]
+        ev["local"] = pd.to_datetime(ev["time"], utc=True).dt.tz_convert(ET)
+        now = pd.Timestamp.now(tz=ET)
+        today = now.normalize()
+        upcoming = view == "Upcoming"
+        ev = (
+            ev[ev["local"] >= today].sort_values("local")
+            if upcoming
+            else ev[ev["local"] < now].sort_values("local", ascending=False)
+        )
         if ev.empty:
             empty("No releases match.")
             return
-        ev["local"] = pd.to_datetime(ev["time"], utc=True).dt.tz_convert(ET)
-        ev = ev.sort_values("local")
-        today = pd.Timestamp.now(tz=ET).normalize()
 
         def val(x) -> str:
             return f"{x:g}" if ok(x) else ""
 
+        def day_label(d: pd.Timestamp) -> str:
+            if d == today:
+                return "Today"
+            if d == today + pd.Timedelta(days=1):
+                return "Tomorrow"
+            if d == today - pd.Timedelta(days=1):
+                return "Yesterday"
+            return f"{d:%A %b %-d}"
+
+        fields = [("Forecast", "expected"), ("Prior", "last")]
+        if not upcoming:
+            fields.insert(0, ("Actual", "actual"))
+        fields = [(c, f) for c, f in fields if ev[f].notna().any()]  # Yahoo rarely has forecasts
+        cols = [c for c, _ in fields]
         rows, current = [], None
         for e in ev.itertuples():
             d = e.local.normalize()
             if d != current:
-                label = (
-                    "Today"
-                    if d == today
-                    else "Tomorrow"
-                    if d == today + pd.Timedelta(days=1)
-                    else "Yesterday"
-                    if d == today - pd.Timedelta(days=1)
-                    else f"{d:%A %b %-d}"
-                )
                 rows.append(
-                    f'<tr class="dayrow{" now" if d == today else ""}"><td colspan="6">{label}</td></tr>'
+                    f'<tr class="dayrow"><td colspan="{3 + len(cols)}">{day_label(d)}</td></tr>'
                 )
                 current = d
             period = "" if str(e.period).lower() in ("", "nan", "none") else escape(str(e.period))
             key = theme.badge_html("Key", None) if e.key else ""
-            past = ' class="past"' if d < today else ""
+            nums = [
+                f"<b>{val(getattr(e, f))}</b>" if f == "actual" else val(getattr(e, f))
+                for _, f in fields
+            ]
             rows.append(
-                f"<tr{past}><td>{e.local:%H:%M}</td>"
-                f"<td class='ev'>{escape(str(e.event))} {key}</td><td class='l'>{period}</td>"
-                f"<td><b>{val(e.actual)}</b></td><td>{val(e.expected)}</td><td>{val(e.last)}</td></tr>"
+                f"<tr><td>{e.local:%H:%M}</td><td class='ev'>{escape(str(e.event))} {key}</td>"
+                f"<td class='l'>{period}</td>" + "".join(f"<td>{n}</td>" for n in nums) + "</tr>"
             )
+        widths = '<col style="width:4.5rem"><col><col style="width:6rem">' + "".join(
+            '<col style="width:7rem">' for _ in cols
+        )
+        head = '<th>Time, ET</th><th class="l">Event</th><th class="l">Period</th>' + "".join(
+            f"<th>{c}</th>" for c in cols
+        )
         html(
-            f'<div class="cwrap"><table class="ctab"><thead><tr><th>Time, ET</th><th class="l">Event</th><th class="l">Period</th>'
-            f"<th>Actual</th><th>Forecast</th><th>Prior</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
+            f'<div class="cwrap"><table class="ctab"><colgroup>{widths}</colgroup>'
+            f"<thead><tr>{head}</tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
         )
 
 
-def rates_row() -> None:
+def rates_cards() -> None:
     ys = yields()
-    left, right = st.columns([1, 1], gap="medium")
-    with left, theme.card("ec-curve"):
+    with theme.card("ec-curve"):
         theme.panel_head("Treasury curve", "Yahoo Finance, percent")
         if not ys:
             empty("No Treasury yield history yet.")
@@ -916,7 +981,7 @@ def rates_row() -> None:
                 f'<table class="ytab"><thead><tr><th>Tenor</th><th>Yield</th><th>1D, bp</th><th>1M, bp</th>'
                 f"<th>1Y, bp</th></tr></thead><tbody>{rows}</tbody></table>"
             )
-    with right, theme.card("ec-spread"):
+    with theme.card("ec-spread"):
         if "10Y" not in ys or "3M" not in ys:
             theme.panel_head("10Y minus 3M", "")
             empty("Needs the 10-year and 3-month yields.")
@@ -936,15 +1001,18 @@ def rates_row() -> None:
             )
         )
         fig.add_hline(y=0, line=dict(color=T["line_strong"], width=1))
-        fig = apply_layout(fig, 330)
-        fig.update_yaxes(ticksuffix=" pts")
+        fig = apply_layout(fig, 240)
+        fig.update_yaxes(ticksuffix=" pts", tickformat=".1f")
         st.plotly_chart(fig, width="stretch", config=NO_BAR)
 
 
 def economy_tab() -> None:
     macro_strip()
-    calendar_panel()
-    rates_row()
+    left, right = st.columns([3, 2], gap="medium")
+    with left:
+        calendar_panel()
+    with right:
+        rates_cards()
 
 
 # --- Page ------------------------------------------------------------------------------------
@@ -997,7 +1065,8 @@ st.markdown(
 .tgt .lg { display: inline-flex; align-items: center; gap: 6px; }
 .tgt .lg i { position: static; transform: none; display: inline-block; width: 8px; height: 8px; margin-left: 8px; }
 .rec { margin-top: 14px; }
-.rec .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; gap: 1px; }
+.rec .bar { display: flex; align-items: stretch; height: 8px; border-radius: 2px; overflow: hidden; gap: 2px; }
+.rec .bar span { display: block; height: 100%; }
 .rec .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12px; color: var(--fg-subtle); }
 .rec .legend b { color: var(--fg); font-weight: 600; }
 .ftab, .etab, .ctab, .ytab { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -1013,7 +1082,7 @@ st.markdown(
 .ftab th:last-child, .ftab td:last-child, .etab th:last-child, .etab td:last-child,
 .ctab th:last-child, .ctab td:last-child, .ytab th:last-child, .ytab td:last-child { padding-right: 0; }
 .ytab tbody th { font-weight: 600; color: var(--fg); text-align: left; padding-left: 0; }
-.cwrap { max-height: 640px; overflow-y: auto; }
+.cwrap { max-height: 900px; overflow-y: auto; }
 .ctab thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .ctab .l, .ctab .ev { text-align: left; }
 .ctab .ev { color: var(--fg); }
@@ -1022,15 +1091,46 @@ st.markdown(
 .ctab tr.dayrow.now td { color: var(--fg); }
 .ctab td { color: var(--fg); }
 .flist { font-size: 13px; }
-.fl { display: grid; grid-template-columns: 6.5rem 4.5rem minmax(0, 1fr); gap: 10px; align-items: center;
-  padding: 8px 0; border-bottom: 1px solid var(--line); }
-.fl:last-child { border-bottom: none; }
+.flist a.fl { display: grid; grid-template-columns: 6.75rem 4.5rem minmax(0, 1fr) 16px; gap: 12px;
+  align-items: center; padding: 10px 8px; margin: 0 -8px; border-bottom: 1px solid var(--line);
+  border-radius: 4px; color: var(--fg) !important; text-decoration: none !important; }
+.flist a.fl:last-child { border-bottom: none; }
+.flist a.fl:hover { background: var(--surface-raised); }
+.flist a.fl:hover .t { text-decoration: underline; }
 .fl .d { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
-.fl a { color: var(--fg) !important; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fl a:hover { text-decoration: underline; }
+.fl .k { font-size: 12px; font-weight: 600; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.fl .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl .x { display: grid; place-items: center; color: var(--fg-subtle); }
 .about { font-size: 13.5px; line-height: 1.6; color: var(--fg-muted); margin: 0; max-width: 980px; }
-.note { font-size: 12px; color: var(--fg-subtle); margin: 8px 0 0; }
-.empty { font-size: 13px; color: var(--fg-subtle); margin: 8px 0; }
+.fa-quote { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.fa-ext { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums; }
+.fa-ext b { font-weight: 600; color: var(--fg); }
+.st-key-fa-ctl-kind, .st-key-fa-ctl-freq { align-items: flex-end; }
+/* Cards side by side end level: each column stretches to the row and its card fills the column. */
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [class*="st-key-card-"]) { align-items: stretch; }
+[data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"] > [class*="st-key-card-"]) > [data-testid="stVerticalBlock"] { height: 100%; }
+[data-testid="stColumn"] [data-testid="stLayoutWrapper"]:has(> [class*="st-key-card-"]) { height: 100%; }
+[data-testid="stColumn"] [class*="st-key-card-"] { height: 100%; }
+.ftab .yoy { border-left: 1px solid var(--line) !important; padding-left: 16px !important; }
+/* Streamlit styles markdown tables and paragraphs with the same specificity and later in the page:
+   every cell gets a full border and its own padding. These rules win, scoped to this page's markup. */
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ctab, .ytab) { margin: 0; border: 0; }
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ctab, .ytab) :is(th, td) {
+  border: 0; border-bottom: 1px solid var(--line); background: none; padding: 9px 14px; line-height: 1.35; }
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ctab, .ytab) thead th {
+  border-bottom: 1px solid var(--line-strong); padding-top: 2px; white-space: nowrap; }
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ctab, .ytab) :is(th, td):first-child { padding-left: 0; }
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ctab, .ytab) :is(th, td):last-child { padding-right: 0; }
+[data-testid="stMarkdownContainer"] :is(.ftab, .etab, .ytab) tbody tr:last-child :is(th, td) { border-bottom: 0; }
+[data-testid="stMarkdownContainer"] .ftab td small { display: none; }
+[data-testid="stMarkdownContainer"] .ctab { table-layout: fixed; }
+[data-testid="stMarkdownContainer"] .ctab thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+[data-testid="stMarkdownContainer"] .ctab td.ev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-testid="stMarkdownContainer"] p.src { margin: 10px 0 0; font-size: 12px; color: var(--fg-subtle); text-align: right; }
+[data-testid="stMarkdownContainer"] p.note { font-size: 12px; color: var(--fg-subtle); margin: 8px 0 0; }
+[data-testid="stMarkdownContainer"] p.empty { font-size: 13px; color: var(--fg-subtle); margin: 8px 0; }
+[data-testid="stMarkdownContainer"] p.about { font-size: 13.5px; line-height: 1.6; color: var(--fg-muted); margin: 0; }
 </style>""",
     unsafe_allow_html=True,
 )

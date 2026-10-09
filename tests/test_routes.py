@@ -20,3 +20,10 @@ def test_default_is_a_route():
 
 def test_landing_and_login_exist():
     assert (PAGES / "landing.py").exists() and (PAGES / "login.py").exists()
+
+
+def test_entry_resolves_every_page():
+    entry = REPO_ROOT / "src" / "alphasurface" / "app.py"
+    assert entry.exists()
+    for stem in [*routes.STEMS, "landing", "login"]:
+        assert (entry.parent / routes.page(stem)).exists(), stem

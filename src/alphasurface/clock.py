@@ -88,6 +88,17 @@ def sessions_back(n: int, now: pd.Timestamp | None = None, market: str = "equity
     return opened.iloc[-min(max(n, 1), len(opened))]
 
 
+def last_close(now: pd.Timestamp | None = None, market: str = "equity") -> pd.Timestamp:
+    """New York date of the most recent session that has closed by now."""
+    t = _utc(now)
+    year = t.tz_convert(NY).year
+    closes = pd.concat(
+        [_schedule(market, year - 1)["market_close"], _schedule(market, year)["market_close"]]
+    )
+    closed = closes[closes <= t].drop_duplicates().sort_values()
+    return closed.iloc[-1].tz_convert(NY).normalize()
+
+
 def minutes_to_close(now: pd.Timestamp | None = None, market: str = "equity") -> float:
     """Regular-session minutes left today: the whole session before the open (210 on a half
     day), what is left during it, 0 after the close or on a day with no session."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+import pandas as pd
 import pytest
 
 from alphasurface.collector.chains import SyntheticChains
@@ -141,6 +142,36 @@ def test_straddle_puts_calls_and_puts_side_by_side():
     assert view.columns[7] == "strike"
     assert view["strike"].is_monotonic_increasing and view["strike"].is_unique
     assert view.columns[:7].str.startswith("call_").all()
-    assert view.columns[8:].str.startswith("put_").all()
+    assert view.columns[8:-2].str.startswith("put_").all()
+    assert list(view.columns[-2:]) == ["call_iv_from", "put_iv_from"]  # bookkeeping, not shown
     atm = view.iloc[(view["strike"] - 750.0).abs().argmin()]
     assert atm["call_iv"] == pytest.approx(atm["put_iv"], abs=5e-3)  # one smile, both sides
+
+
+def test_deep_itm_call_borrows_the_put_iv_at_its_strike():
+    """A deep in-the-money call quoted under its no-arbitrage bound has no IV of its own; parity
+    makes it the put's at the same strike, and its delta then follows from that IV."""
+    S_, K, dte = 100.0, 60.0, 30
+    put = om.contract(S_, K, dte, R, Q, "put", 0.04, 0.06, 0.05)
+    assert put.iv > 0
+    board = pd.DataFrame(
+        {
+            "kind": ["call", "put"],
+            "strike": [K, K],
+            "bid": [39.4, 0.04],
+            "ask": [39.8, 0.06],  # mid 39.6, under S e^-qT - K e^-rT: no IV solves
+            "last": [39.6, 0.05],
+            "volume": [1.0, 1.0],
+            "open_interest": [1.0, 1.0],
+        }
+    )
+    assert math.isnan(om.contract(S_, K, dte, R, Q, "call", 39.4, 39.8, 39.6).iv)
+    row = om.straddle(board, S_, dte, R, Q).iloc[0]
+    assert row["call_iv"] == pytest.approx(put.iv)
+    assert row["call_iv_from"] == "put" and row["put_iv_from"] == ""
+    assert 0.95 < row["call_delta"] <= 1.0
+
+
+def test_an_own_iv_is_never_replaced():
+    c = om.contract(S, 100.0, 30, R, Q, "call", 2.4, 2.6, 2.5, iv_override=0.99, iv_from="put")
+    assert c.iv < 0.99 and c.iv_from == ""

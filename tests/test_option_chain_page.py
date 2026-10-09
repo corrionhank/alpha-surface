@@ -23,7 +23,7 @@ def test_chain_page_renders_and_follows_the_selected_cell():
     assert _title(at, f"SPY 750 call, {expiry}")  # synthetic spot is 750
 
     strikes = at.dataframe[0].value["strike"].astype(float).tolist()
-    key = f"chain-synthetic-SPY-{expiry}-0.85-1.15"
+    key = f"chain-synthetic-SPY-{expiry}-20"
     at.session_state[key] = {
         "selection": {"rows": [], "columns": [], "cells": [(strikes.index(780.0), "put_mark")]}
     }
@@ -31,3 +31,23 @@ def test_chain_page_renders_and_follows_the_selected_cell():
     assert not at.exception
     assert _title(at, f"SPY 780 put, {expiry}")
     assert _title(at, "Cash-secured put")
+
+    # A different strike count rebuilds the board; the pick is kept by strike, not by row.
+    at.segmented_control(key="chain_strikes").set_value("40").run()
+    assert not at.exception
+    assert _title(at, f"SPY 780 put, {expiry}")
+
+
+def test_strikes_control_and_full_screen():
+    at = AppTest.from_file(PAGE, default_timeout=60)
+    at.run()
+    rows = len(at.dataframe[0].value)
+    assert rows == 41  # 20 strikes each side of the money, plus the money
+    at.segmented_control(key="chain_strikes").set_value("10").run()
+    assert len(at.dataframe[0].value) == 21
+    at.segmented_control(key="chain_strikes").set_value("All").run()
+    assert len(at.dataframe[0].value) > rows
+    next(b for b in at.button if b.label == "Full screen").click().run()
+    assert not at.exception and at.session_state["chain_full"]
+    next(b for b in at.button if b.label == "Exit full screen").click().run()
+    assert not at.session_state["chain_full"]
