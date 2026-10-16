@@ -1,6 +1,6 @@
 # The dashboard and the collectors in one image. Market data lives on a volume at /data;
 # tastytrade credentials come in as environment variables at run time, never baked in.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
